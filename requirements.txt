@@ -1,0 +1,17 @@
+flask
+flask-sqlalchemy
+flask-migrate
+flask-cors
+python-dotenv
+pyjwt
+bcrypt
+email-validator
+google-generativeai
+pdfplumber
+sentence-transformers
+matplotlib
+numpy
+ipython
+torch
+torchvision
+torchaudio

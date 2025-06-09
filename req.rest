@@ -1,0 +1,58 @@
+### Inscription d'un nouvel utilisateur
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+    "username": "testuser",
+    "email": "test@example.com",
+    "password": "Password123!"
+}
+
+### Connexion
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "password": "Password123!"
+}
+
+### Récupérer le profil utilisateur
+GET http://localhost:5000/api/auth/me
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VybmFtZSI6InRlc3R1c2VyIiwiZXhwIjoxNzQ5NTg0MzI4fQ.M88yPuGh0MV4lyOzK8xrG88TZqKDw2vbODcUBgMzPIk
+
+### Test avec les identifiants de démonstration
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "recruteur@technova.com",
+    "password": "TechNova2025"
+}
+
+### Test avec identifiants invalides
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "wrong@email.com",
+    "password": "wrongpassword"
+}
+
+### Test inscription avec email existant
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+    "username": "existinguser",
+    "email": "test@example.com",
+    "password": "Password123!"
+}
+
+### Test inscription avec données manquantes
+POST http://localhost:5000/api/auth/register
+Content-Type: application/json
+
+{
+    "email": "incomplete@example.com"
+}
