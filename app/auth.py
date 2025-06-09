@@ -84,54 +84,49 @@ def register():
 
 @bp.route('/login', methods=['POST'])
 def login():
-    # Vérification basique du Content-Type
     if not request.is_json:
-        return jsonify({
-            "message": "Le Content-Type doit être application/json",
-            "received_headers": dict(request.headers)
-        }), 415
+        return jsonify({"message": "Le Content-Type doit être application/json"}), 415
     
     try:
-        # Tentative de récupération des données JSON
         data = request.get_json()
         
-        # Vérification des données requises
         if not data:
             return jsonify({"message": "Corps de la requête vide"}), 400
         
-        email = data.get('email')
-        password = data.get('password')
+        # Validation des champs requis
+        if not data.get('email') or not data.get('password'):
+            return jsonify({"message": "Email et mot de passe requis"}), 400
         
-        if not email or not password:
-            return jsonify({"message": "Email et password requis"}), 400
+        user = User.query.filter_by(email=data['email']).first()
         
-        # Recherche de l'utilisateur
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            return jsonify({"message": "Utilisateur non trouvé"}), 401
+        if not user or not user.check_password(data['password']):
+            return jsonify({"message": "Email ou mot de passe incorrect"}), 401
         
-        # Vérification du mot de passe
-        if not user.check_password(password):
-            return jsonify({"message": "Mot de passe incorrect"}), 401
+        # Mise à jour du dernier login
+        user.last_login = datetime.utcnow()
+        user.failed_login_attempts = 0
+        db.session.commit()
         
-        # Génération du token JWT
+        # Génération du token
         token = jwt.encode({
             'user_id': user.id,
             'username': user.username,
-            'exp': datetime.utcnow() + timedelta(hours=current_app.config['JWT_EXPIRATION_HOURS'])
+            'exp': datetime.utcnow() + current_app.config['JWT_ACCESS_TOKEN_EXPIRES']
         }, current_app.config['JWT_SECRET_KEY'])
         
         return jsonify({
-            'token': token,
-            'user': {
-                'id': user.id,
-                'email': user.email,
-                'name': user.username,
-                'role': user.role,
-                'company': 'TechNova'  # Pour correspondre au mockUser
-            }        }), 200
+            "message": "Connexion réussie",
+            "token": token,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role
+            }
+        }), 200
         
     except Exception as e:
+        current_app.logger.error(f"Erreur lors de la connexion: {str(e)}")
         return jsonify({
             "message": "Erreur lors du traitement de la requête",
             "error": str(e)
