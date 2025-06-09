@@ -8,10 +8,6 @@ from .models import User
 
 bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
-# Clé secrète pour JWT (à mettre dans config.py en production)
-JWT_SECRET_KEY = 'votre-cle-secrete-a-changer-en-production'
-JWT_EXPIRATION_HOURS = 24
-
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -21,7 +17,7 @@ def token_required(f):
         
         try:
             token = token.split()[1]  # Enlever le préfixe "Bearer"
-            data = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+            data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=["HS256"])
             current_user = User.query.get(data['user_id'])
             if not current_user:
                 return jsonify({'message': 'Token invalide'}), 401
@@ -122,8 +118,8 @@ def login():
         token = jwt.encode({
             'user_id': user.id,
             'username': user.username,
-            'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS)
-        }, JWT_SECRET_KEY)
+            'exp': datetime.utcnow() + timedelta(hours=current_app.config['JWT_EXPIRATION_HOURS'])
+        }, current_app.config['JWT_SECRET_KEY'])
         
         return jsonify({
             'token': token,
