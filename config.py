@@ -17,9 +17,9 @@ class Config:
         }
     }
     
-    # JWT Configuration
+    # JWT
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'default-jwt-key')
-    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)  # Valeur par défaut de 24 heures
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=24)
     
     # CORS
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')

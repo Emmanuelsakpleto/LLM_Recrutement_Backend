@@ -1,3 +1,4 @@
+import os
 from app import create_app, db
 from app.models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation
 from flask import jsonify, request, make_response
@@ -74,13 +75,6 @@ def test_cors():
         "received_headers": dict(request.headers)
     })
 
-if __name__ == '__main__':
-    # Configuration des logs plus détaillés
-    logging.getLogger('werkzeug').setLevel(logging.INFO)
-    # Permettre l'accès depuis n'importe quelle interface
-    print("Démarrage du serveur sur http://0.0.0.0:5000")
-    print("Le serveur sera accessible via:")
-    print("- http://localhost:5000")
-    print("- http://127.0.0.1:5000")
-    print("- http://10.0.2.2:5000 (depuis l'émulateur Android)")
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True, use_reloader=False)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)

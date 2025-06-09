@@ -3,8 +3,8 @@ POST http://localhost:5000/api/auth/register
 Content-Type: application/json
 
 {
-    "username": "testuser123",
-    "email": "test123@example.com",
+    "username": "testuser1234",
+    "email": "test1234@example.com",
     "password": "Password123!"
 }
 
@@ -13,13 +13,13 @@ POST http://localhost:5000/api/auth/login
 Content-Type: application/json
 
 {
-    "email": "test123@example.com",
+    "email": "test1234@example.com",
     "password": "Password123!"
 }
 
 ### Récupérer le profil utilisateur
 GET http://localhost:5000/api/auth/me
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyLCJ1c2VybmFtZSI6InRlc3R1c2VyMTIzIiwiZXhwIjoxNzQ5NTkyNjQ1fQ.j1bRTErgQ67-JJ14nF47VdN_ILDjJ-JOh6pNjaQ6nNc
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VybmFtZSI6InRlc3R1c2VyMTIzNCIsImV4cCI6MTc0OTU5NDAwNX0.SnXg4Ah_bRFWtvYeVVRF4qB0dQUSuLuwS7A-AANgpdQ
 
 ### Test avec les identifiants de démonstration
 POST http://localhost:5000/api/auth/login
