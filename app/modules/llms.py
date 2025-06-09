@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import google.generativeai as genai
 import logging
-import torch  # Ajout de l'import torch
+import torch
 import re
 import json
 from sentence_transformers import SentenceTransformer
+import gc
 
 # Configuration des logs
 logging.basicConfig(level=logging.DEBUG)
@@ -21,6 +22,26 @@ GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 
 if not GEMINI_API_KEY:
     raise ValueError("La clé API Gemini n'est pas définie dans le fichier .env")
+
+# Variable globale pour le modèle Sentence Transformer
+_model_instance = None
+
+def get_sentence_transformer():
+    global _model_instance
+    if _model_instance is None:
+        # Libérer la mémoire cache CUDA si possible
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        
+        # Forcer le garbage collector
+        gc.collect()
+        
+        # Charger le modèle avec des options d'optimisation mémoire
+        _model_instance = SentenceTransformer(
+            'distiluse-base-multilingual-cased-v1',  # Modèle plus léger
+            device='cpu'  # Forcer l'utilisation du CPU
+        )
+    return _model_instance
 
 try:
     # Configuration de l'API Gemini
@@ -82,8 +103,10 @@ if not GEMINI_API_KEY:
 # Configurer Gemini
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Charger le modèle d'embeddings
-MODEL_EMBEDDINGS = SentenceTransformer('all-MiniLM-L6-v2')
+# Utiliser la fonction get_sentence_transformer au lieu d'une instance globale
+def get_embeddings(text):
+    model = get_sentence_transformer()
+    return model.encode(text)
 
 print("Configuration initiale terminée avec succès !")
 
@@ -153,9 +176,11 @@ def calculate_cv_score(cv_data, job_description):
         education_score = 0.0       
         cv_skills = cv_data.get("Compétences", [])
         job_skills = job_description.get("skills", [])
+        
         if cv_skills and job_skills:
-            cv_embeddings = MODEL_EMBEDDINGS.encode(cv_skills, convert_to_tensor=True)
-            job_embeddings = MODEL_EMBEDDINGS.encode(job_skills, convert_to_tensor=True)
+            # Utiliser get_embeddings avec conversion en tenseur PyTorch
+            cv_embeddings = torch.tensor(get_embeddings(cv_skills))
+            job_embeddings = torch.tensor(get_embeddings(job_skills))
             
             # Calculer les similarités individuelles
             similarities = []
@@ -504,3 +529,19 @@ def generate_predictive_analysis(job_description, cv_data, score_result, questio
         return report
     except Exception as e:
         return {"error": f"Erreur générale : {str(e)}"}
+
+def cleanup_memory():
+    """Nettoie la mémoire en libérant les ressources non utilisées."""
+    global _model_instance
+    
+    # Libérer le modèle s'il existe
+    if _model_instance is not None:
+        del _model_instance
+        _model_instance = None
+    
+    # Libérer la mémoire CUDA si disponible
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    
+    # Forcer le garbage collector
+    gc.collect()
