@@ -1,10 +1,10 @@
 ### Inscription d'un nouvel utilisateur
-POST http://localhost:5000/api/auth/register
+POST https://tecnnovabackend-dev.onrender.com/api/auth/register
 Content-Type: application/json
 
 {
-    "username": "testuser1234",
-    "email": "test1234@example.com",
+    "username": "testuser12345",
+    "email": "test12345@example.com",
     "password": "Password123!"
 }
 

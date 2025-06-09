@@ -14,10 +14,10 @@ def create_app():
     db.init_app(app)
     migrate.init_app(app, db)
     
-    # Configuration CORS
+    # Configuration CORS - Accepter toutes les origines
     CORS(app, resources={
-        r"/api/*": {
-            "origins": app.config['CORS_ORIGINS'],
+        r"/*": {
+            "origins": "*",
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "expose_headers": ["Content-Range", "X-Total-Count"],
