@@ -1,25 +1,25 @@
 import os
 from app import create_app, db
 from app.models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation
+from app.auth import auth_bp  # Utilise une importation absolue
 from flask import jsonify, request, make_response
 from flask_cors import cross_origin, CORS
 import logging
-from .auth import auth_bp  # Ajoute cette ligne
 
 app = create_app()
 
 # Configuration globale de CORS
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:8080"}})  # Ajuste pour cibler /api/*
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:8080"}})
 
 # Configuration des headers CORS par défaut
 @app.after_request
 def after_request(response):
-    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'  # Spécifie l'origine exacte
+    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     if request.method == 'OPTIONS':
-        response.headers['Access-Control-Max-Age'] = '86400'  # 24 heures
+        response.headers['Access-Control-Max-Age'] = '86400'
     return response
 
 # Configuration des logs
@@ -41,7 +41,7 @@ def log_request_info():
     app.logger.info('Body: %s', request.get_data())
 
 # Enregistrement du blueprint
-app.register_blueprint(auth_bp, url_prefix='/api')  # Ajoute cette ligne
+app.register_blueprint(auth_bp, url_prefix='/api')
 
 @app.route('/api')
 @app.route('/api/')
