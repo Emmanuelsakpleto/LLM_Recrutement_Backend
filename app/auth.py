@@ -12,7 +12,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/auth/register', methods=['POST'])
 def register():
     data = request.get_json()
-    app.logger.info('Inscription tentée: %s', data)
+    logger.info('Inscription tentée: %s', data)  # Remplace app.logger par logger
     username = data.get('username')
     email = data.get('email')
     password = data.get('password')
@@ -29,7 +29,7 @@ def register():
     )
     db.session.add(user)
     db.session.commit()
-    app.logger.info('Inscription réussie pour %s', username)
+    logger.info('Inscription réussie pour %s', username)  # Remplace app.logger par logger
 
     return jsonify({
         'message': 'Inscription réussie',
@@ -60,7 +60,7 @@ def login():
             return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
 
         access_token = create_access_token(identity=user.id)
-        app.logger.info('Connexion réussie pour %s', email)
+        logger.info('Connexion réussie pour %s', email)  # Remplace app.logger par logger
 
         return jsonify({
             'message': 'Connexion réussie',
@@ -73,7 +73,7 @@ def login():
         }), 200
 
     except Exception as e:
-        app.logger.error(f"Erreur lors de la connexion: {str(e)}")
+        logger.error(f"Erreur lors de la connexion: {str(e)}")  # Remplace app.logger par logger
         return jsonify({
             "error": "Erreur lors de la connexion",
             "details": str(e)
