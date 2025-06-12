@@ -1,0 +1,119 @@
+### Configuration des variables d'environnement
+@baseUrl = https://tecnnovabackend-dev.onrender.com/api
+@localUrl = http://localhost:5000/api
+@token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6InRlc3QiLCJleHAiOjE3NTAwMDAwMDB9
+
+### Test de l'API - Vérification que l'API fonctionne
+GET {{localUrl}}
+
+### Test CORS
+GET {{localUrl}}/test-cors
+
+### Authentification
+
+# Inscription d'un nouvel utilisateur
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+    "username": "testuser12345",
+    "email": "test12345@example.com",
+    "password": "Password123!"
+}
+
+### Connexion (local)
+POST {{localUrl}}/auth/login
+Content-Type: application/json
+
+{
+    "email": "test@example.com",
+    "password": "Password123!"
+}
+
+### Récupérer le profil utilisateur
+GET {{localUrl}}/auth/me
+Authorization: Bearer {{token}}
+
+### Gestion des fiches de poste
+
+# Créer une nouvelle fiche de poste
+POST {{localUrl}}/job-briefs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "title": "Développeur Full Stack",
+    "skills": ["JavaScript", "Python", "React", "Node.js"],
+    "experience": "3-5 ans",
+    "description": "Nous recherchons un développeur Full Stack expérimenté..."
+}
+
+### Liste de toutes les fiches de poste
+GET {{localUrl}}/job-briefs
+Authorization: Bearer {{token}}
+
+### Récupérer une fiche de poste spécifique
+GET {{localUrl}}/job-briefs/1
+Authorization: Bearer {{token}}
+
+### Gestion des CV
+
+# Upload d'un CV
+POST {{localUrl}}/cv
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
+Authorization: Bearer {{token}}
+
+------WebKitFormBoundary
+Content-Disposition: form-data; name="file"; filename="CV.pdf"
+Content-Type: application/pdf
+
+< ./CV.pdf
+------WebKitFormBoundary--
+
+### Obtenir les scores du CV
+GET {{localUrl}}/cv/scores
+Authorization: Bearer {{token}}
+
+### Gestion du contexte d'entreprise
+
+# Créer un nouveau contexte
+POST {{localUrl}}/context
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "values": ["Innovation", "Excellence", "Collaboration"],
+    "culture": "Notre entreprise valorise l'innovation et la collaboration..."
+}
+
+### Obtenir les questions d'entretien
+GET {{localUrl}}/context/questions
+Authorization: Bearer {{token}}
+
+### Gestion des évaluations
+
+# Évaluer un candidat
+POST {{localUrl}}/evaluation/1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+    "appreciations": [
+        {
+            "question": "Comment gérez-vous les conflits en équipe?",
+            "category": "Soft Skills",
+            "appreciation": "Bonne réponse, montre de l'expérience",
+            "score": 4
+        }
+    ]
+}
+
+### Obtenir le radar d'évaluation
+GET {{localUrl}}/evaluation/radar
+Authorization: Bearer {{token}}
+
+### Gestion des candidats
+
+# Liste de tous les candidats
+GET {{localUrl}}/candidates
+Authorization: Bearer {{token}}

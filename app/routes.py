@@ -2,18 +2,17 @@ import os
 import logging
 from flask import Blueprint, request, jsonify, send_file
 from . import db
-from .models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation
-from .auth import token_required
+from .models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation, User
 from .modules.llms import generate_job_description, extract_text_from_pdf, analyze_cv, calculate_cv_score, visualize_scores, generate_final_report, generate_interview_questions, generate_predictive_analysis
 import json
+from werkzeug.security import generate_password_hash, check_password_hash
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('routes', __name__)
 
 @bp.route('/api/job-briefs', methods=['POST'])
-@token_required
-def create_brief(current_user):
+def create_brief():
     try:
         data = request.get_json()
         if not data:
@@ -44,11 +43,12 @@ def create_brief(current_user):
             }), 400
 
         # Conversion du dictionnaire en JSON string
-        full_data_json = json.dumps(data)
-
+        full_data_json = json.dumps(data)        # S'assurer que skills est au format JSON string
+        skills_json = json.dumps(data['skills']) if isinstance(data['skills'], list) else data['skills']
+        
         brief = JobBrief(
             title=data['title'],
-            skills=data['skills'],
+            skills=skills_json,
             experience=data['experience'],
             description=description,  # Description garantie non-null
             full_data=full_data_json
@@ -79,8 +79,7 @@ def create_brief(current_user):
 #     return jsonify(json.loads(brief.full_data))
 
 @bp.route('/api/job-briefs/<int:brief_id>', methods=['GET'])
-@token_required
-def get_brief_by_id(current_user, brief_id):  # Renommé la fonction
+def get_brief_by_id(brief_id):  # Renommé la fonction
     """Récupérer une fiche de poste spécifique"""
     try:
         brief = JobBrief.query.get(brief_id)
@@ -103,16 +102,12 @@ def get_brief_by_id(current_user, brief_id):  # Renommé la fonction
         }), 500
 
 @bp.route('/api/job-briefs', methods=['GET'])
-@token_required
-def list_briefs(current_user):
+def list_briefs():
     """Lister toutes les fiches de poste"""
     try:
         briefs = JobBrief.query.all()
-        return jsonify({
-            "status": "success",
-            "count": len(briefs),
-            "data": [brief.to_dict() for brief in briefs]
-        }), 200
+        briefs_data = [brief.to_dict() for brief in briefs]
+        return jsonify(briefs_data), 200
         
     except Exception as e:
         logger.error(f"Erreur lors de la récupération des fiches: {str(e)}")
@@ -235,3 +230,5 @@ def get_candidates():
         "status": c.status,
         "appreciations": [{"question": a.question, "category": a.category, "appreciation": a.appreciation, "score": a.score} for a in c.appreciations]
     } for c in candidates])
+
+# Routes d'authentification déplacées vers auth.py
