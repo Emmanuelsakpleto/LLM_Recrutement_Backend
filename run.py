@@ -4,22 +4,22 @@ from app.models import JobBrief, CompanyContext, InterviewQuestion, Candidate, A
 from flask import jsonify, request, make_response
 from flask_cors import cross_origin, CORS
 import logging
+from .auth import auth_bp  # Ajoute cette ligne
 
 app = create_app()
 
 # Configuration globale de CORS
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:8080"}})  # Ajuste pour cibler /api/*
 
 # Configuration des headers CORS par défaut
 @app.after_request
 def after_request(response):
-    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'  # Spécifie l'origine exacte
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     if request.method == 'OPTIONS':
-        # Gérer les requêtes preflight
-        response.headers['Access-Control-Max-Age'] = '1'
+        response.headers['Access-Control-Max-Age'] = '86400'  # 24 heures
     return response
 
 # Configuration des logs
@@ -39,6 +39,9 @@ def log_request_info():
     app.logger.info('Headers: %s', dict(request.headers))
     app.logger.info('Remote addr: %s', request.remote_addr)
     app.logger.info('Body: %s', request.get_data())
+
+# Enregistrement du blueprint
+app.register_blueprint(auth_bp, url_prefix='/api')  # Ajoute cette ligne
 
 @app.route('/api')
 @app.route('/api/')
@@ -61,19 +64,12 @@ def index():
 @cross_origin()
 def test_cors():
     if request.method == 'OPTIONS':
-        # Préflight request
-        response = jsonify({
-            "status": "CORS preflight accepted"
-        })
-        response.headers['Access-Control-Allow-Origin'] = '*'
+        response = jsonify({"status": "CORS preflight accepted"})
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = '*'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
         return response
-    
-    return jsonify({
-        "status": "CORS test successful",
-        "received_headers": dict(request.headers)
-    })
+    return jsonify({"status": "CORS test successful", "received_headers": dict(request.headers)})
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
