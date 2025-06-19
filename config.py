@@ -14,7 +14,8 @@ class Config:
     # CORS
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
     
-    # Database    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+    # Database
+    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'connect_args': {
