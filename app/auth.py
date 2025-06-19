@@ -11,34 +11,35 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/auth/register', methods=['POST'])
 def register():
-    data = request.get_json()
-    logger.info('Inscription tentée: %s', data)  # Remplace app.logger par logger
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
+    try:
+        data = request.get_json()
+        logger.info('Inscription tentée: %s', data)
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
 
-    # Vérification avec les colonnes existantes
-    existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
-    if existing_user:
-        return jsonify({'error': 'Email ou nom d\'utilisateur déjà utilisé'}), 400
+        if not all([username, email, password]):
+            return jsonify({'error': 'Tous les champs sont requis'}), 400
 
-    user = User(
-        username=username,
-        email=email,
-        password=generate_password_hash(password)
-    )
-    db.session.add(user)
-    db.session.commit()
-    logger.info('Inscription réussie pour %s', username)  # Remplace app.logger par logger
+        existing_user = User.query.with_entities(User.id, User.username, User.email, User.password).filter(
+            (User.username == username) | (User.email == email)
+        ).first()
+        if existing_user:
+            return jsonify({'error': 'Email ou nom d\'utilisateur déjà utilisé'}), 400
 
-    return jsonify({
-        'message': 'Inscription réussie',
-        'user': {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email
-        }
-    }), 201
+        user = User(username=username, email=email, password=generate_password_hash(password))
+        db.session.add(user)
+        db.session.commit()
+        logger.info('Inscription réussie pour %s', username)
+
+        return jsonify({
+            'message': 'Inscription réussie',
+            'user': {'id': user.id, 'username': user.username, 'email': user.email}
+        }), 201
+    except Exception as e:
+        logger.error(f"Erreur lors de l'inscription: {str(e)}")
+        return jsonify({'error': 'Erreur interne du serveur', 'details': str(e)}), 500
+    
 
 @auth_bp.route('/auth/login', methods=['POST'])
 def login():

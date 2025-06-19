@@ -1,17 +1,17 @@
 import os
 from app import create_app, db
 from app.models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation
-from app.auth import auth_bp  # Utilise une importation absolue
+from app.auth import auth_bp  # Importation toujours nécessaire pour charger le blueprint
 from flask import jsonify, request, make_response
 from flask_cors import cross_origin, CORS
 import logging
 
 app = create_app()
 
-# Configuration globale de CORS
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:8080"}})
+# Configuration globale de CORS (redondant avec create_app, peut être supprimé)
+# CORS(app, resources={r"/api/*": {"origins": "http://localhost:8080"}})
 
-# Configuration des headers CORS par défaut
+# Configuration des headers CORS par défaut (redondant, peut être supprimé)
 @app.after_request
 def after_request(response):
     response.headers['Access-Control-Allow-Origin'] = 'http://localhost:8080'
@@ -40,8 +40,8 @@ def log_request_info():
     app.logger.info('Remote addr: %s', request.remote_addr)
     app.logger.info('Body: %s', request.get_data())
 
-# Enregistrement du blueprint
-app.register_blueprint(auth_bp, url_prefix='/api')
+# Supprime ou commente cette ligne
+# app.register_blueprint(auth_bp, url_prefix='/api', name='auth_v1')
 
 @app.route('/api')
 @app.route('/api/')

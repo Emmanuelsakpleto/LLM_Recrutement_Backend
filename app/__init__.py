@@ -20,7 +20,9 @@ def create_app():
     # Initialisation des extensions
     db.init_app(app)
     migrate.init_app(app, db)
-    jwt.init_app(app)# Configuration CORS sécurisée
+    jwt.init_app(app)
+    
+    # Configuration CORS sécurisée
     CORS(app,
         resources={r"/*": {
             "origins": ["http://localhost:8080", "https://technova-frontend.vercel.app"],
@@ -30,13 +32,15 @@ def create_app():
             "expose_headers": ["Content-Range", "X-Total-Count"]
         }},
         supports_credentials=True)
+    
     with app.app_context():
         from . import models
         from .routes import bp as routes_bp
         from .auth import auth_bp
         
-        app.register_blueprint(routes_bp)
-        app.register_blueprint(auth_bp)
+        # Enregistrement des blueprints avec préfixes
+        app.register_blueprint(routes_bp)  # Pas de préfixe si routes_bp n'en a pas besoin
+        app.register_blueprint(auth_bp, url_prefix='/api')  # Ajoute le préfixe ici
         db.create_all()
 
     return app

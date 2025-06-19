@@ -4,7 +4,7 @@
 @token = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6InRlc3QiLCJleHAiOjE3NTAwMDAwMDB9
 
 ### Test de l'API - Vérification que l'API fonctionne
-GET {{localUrl}}
+GET {{baseUrl}}
 
 ### Test CORS
 GET {{localUrl}}/test-cors
@@ -12,12 +12,12 @@ GET {{localUrl}}/test-cors
 ### Authentification
 
 # Inscription d'un nouvel utilisateur
-POST {{baseUrl}}/auth/register
+POST {{localUrl}}/auth/register
 Content-Type: application/json
 
 {
-    "username": "testuser12345",
-    "email": "test12345@example.com",
+    "username": "emmsakpleto",
+    "email": "emm.sakpleto@gmail.com",
     "password": "Password123!"
 }
 

@@ -14,13 +14,17 @@ class Config:
     # CORS
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
     
-    # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+    # Database    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'connect_args': {
-            'sslmode': 'require'
-        }
+            'sslmode': 'verify-full',
+            'connect_timeout': 30
+        },
+        'pool_size': 5,
+        'max_overflow': 2,
+        'pool_timeout': 30,
+        'pool_recycle': 1800
     }
     
     # Upload
