@@ -15,11 +15,14 @@ class Config:
     CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*')
     
     # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL')
+    # Ajout de sslmode=disable si non précisé dans l'URL
+    db_url = os.getenv('DATABASE_URL')
+    if db_url and 'sslmode' not in db_url:
+        db_url += '?sslmode=disable'
+    SQLALCHEMY_DATABASE_URI = db_url
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
         'connect_args': {
-            'sslmode': 'verify-full',
             'connect_timeout': 30
         },
         'pool_size': 5,
