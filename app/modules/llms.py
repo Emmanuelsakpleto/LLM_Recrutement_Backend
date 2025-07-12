@@ -171,16 +171,25 @@ def analyze_cv(cv_text, model="gemini-1.5-flash"):
 
 def calculate_cv_score(cv_data, job_description):
     try:
+        logger.info(f"🎯 Calcul du score CV - CV data: {cv_data}")
+        logger.info(f"🎯 Calcul du score CV - Job desc: {job_description}")
+        
         skills_score = 0.0
         experience_score = 0.0
         education_score = 0.0       
         cv_skills = cv_data.get("Compétences", [])
         job_skills = job_description.get("skills", [])
         
+        logger.info(f"🔧 CV skills: {cv_skills}")
+        logger.info(f"🔧 Job skills: {job_skills}")
+        
         if cv_skills and job_skills:
             # Utiliser get_embeddings avec conversion en tenseur PyTorch
             cv_embeddings = torch.tensor(get_embeddings(cv_skills))
             job_embeddings = torch.tensor(get_embeddings(job_skills))
+            
+            logger.info(f"📊 CV embeddings shape: {cv_embeddings.shape}")
+            logger.info(f"📊 Job embeddings shape: {job_embeddings.shape}")
             
             # Calculer les similarités individuelles
             similarities = []
@@ -193,9 +202,13 @@ def calculate_cv_score(cv_data, job_description):
             
             # Calculer le score moyen
             skills_score = sum(similarities) / len(similarities) if similarities else 0.0
+            logger.info(f"🎯 Skills score calculé: {skills_score}")
 
         cv_experiences = cv_data.get("Expériences professionnelles", [])
         required_years = job_description.get("required_experience_years", 0)
+        logger.info(f"💼 CV experiences: {cv_experiences}")
+        logger.info(f"💼 Required years: {required_years}")
+        
         if cv_experiences:
             total_years = 0
             for exp in cv_experiences:
@@ -212,9 +225,14 @@ def calculate_cv_score(cv_data, job_description):
                     months = 2
                     total_years += months / 12
             experience_score = min(total_years / required_years, 1.0) if required_years > 0 else 0.0
+            logger.info(f"💼 Total years calculated: {total_years}")
+            logger.info(f"💼 Experience score: {experience_score}")
 
         cv_educations = cv_data.get("Formations", [])
         required_degree = job_description.get("required_degree", "")
+        logger.info(f"🎓 CV educations: {cv_educations}")
+        logger.info(f"🎓 Required degree: {required_degree}")
+        
         if cv_educations and required_degree:
             degree_levels = {"Bac": 1, "Licence": 2, "Bachelor": 2, "Master": 3, "Doctorat": 4}
             max_cv_degree_level = 0
@@ -225,15 +243,27 @@ def calculate_cv_score(cv_data, job_description):
                         max_cv_degree_level = max(max_cv_degree_level, level)
             required_level = degree_levels.get(required_degree, 1)
             education_score = min(max_cv_degree_level / required_level, 1.0) if required_level > 0 else 0.0
+            logger.info(f"🎓 Max degree level: {max_cv_degree_level}")
+            logger.info(f"🎓 Required level: {required_level}")
+            logger.info(f"🎓 Education score: {education_score}")
 
         final_score = (0.5 * skills_score + 0.3 * experience_score + 0.2 * education_score) * 100
+        
+        logger.info(f"🏆 Final score components:")
+        logger.info(f"   - Skills: {skills_score * 100}%")
+        logger.info(f"   - Experience: {experience_score * 100}%") 
+        logger.info(f"   - Education: {education_score * 100}%")
+        logger.info(f"   - Final: {final_score}%")
 
-        return {
+        result = {
             "skills_score": skills_score * 100,
             "experience_score": experience_score * 100,
             "education_score": education_score * 100,
             "final_score": final_score
         }
+        
+        logger.info(f"🎯 Returning score result: {result}")
+        return result
     except Exception as e:
         return {"error": f"Erreur lors du calcul du score : {str(e)}"}
 

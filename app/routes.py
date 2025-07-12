@@ -9,6 +9,8 @@ from flask_cors import CORS, cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from . import db
 from .models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation, User
+from .constants import CANDIDATE_STATUS, PROCESS_STAGES, SCORING_THRESHOLDS, SCORING_WEIGHTS
+from .process_manager import ProcessManager
 from .modules.llms import (
     generate_job_description,
     extract_text_from_pdf,
@@ -264,10 +266,13 @@ def export_pdf(brief_id):
 def get_candidates():
     try:
         current_user_id = get_jwt_identity()
+        logger.info(f"Récupération des candidats pour l'utilisateur {current_user_id}")
         candidates = Candidate.query.filter_by(user_id=current_user_id).all()
+        logger.info(f"Nombre de candidats trouvés: {len(candidates)}")
+        
         candidates_data = []
         for c in candidates:
-            # Correction parsing interview_questions
+            # Correction parsing interview_questions, score_details, risks, recommendations
             questions = c.interview_questions
             if isinstance(questions, str):
                 try:
@@ -276,6 +281,37 @@ def get_candidates():
                     questions = []
             elif questions is None:
                 questions = []
+                
+            # Parsing score_details
+            score_details = c.score_details
+            if isinstance(score_details, str):
+                try:
+                    score_details = json.loads(score_details)
+                except Exception:
+                    score_details = {}
+            elif score_details is None:
+                score_details = {}
+                
+            # Parsing risks
+            risks = c.risks
+            if isinstance(risks, str):
+                try:
+                    risks = json.loads(risks)
+                except Exception:
+                    risks = []
+            elif risks is None:
+                risks = []
+                
+            # Parsing recommendations
+            recommendations = c.recommendations
+            if isinstance(recommendations, str):
+                try:
+                    recommendations = json.loads(recommendations)
+                except Exception:
+                    recommendations = []
+            elif recommendations is None:
+                recommendations = []
+                
             candidates_data.append({
                 "id": c.id,
                 "name": c.name,
@@ -283,7 +319,8 @@ def get_candidates():
                 "predictive_score": c.predictive_score,
                 "status": c.status,
                 "brief_id": c.brief_id,
-                "score_details": c.score_details,  # <-- Ajout scores détaillés
+                "user_id": c.user_id,
+                "score_details": score_details,  # <-- Objet parsé
                 "interview_questions": questions,  # <-- Toujours une liste
                 "appreciations": [
                     {
@@ -296,12 +333,12 @@ def get_candidates():
                     }
                     for a in c.appreciations
                 ] if c.appreciations else [],
-                "risks": c.risks,  # <-- Ajout risques
-                "recommendations": c.recommendations  # <-- Ajout recommandations
+                "risks": risks,  # <-- Liste parsée
+                "recommendations": recommendations  # <-- Liste parsée
             })
         return jsonify(candidates_data), 200
     except Exception as e:
-        logger.error(f"Erreur lors de la récupération de la fiche {brief_id}: {str(e)}")
+        logger.error(f"Erreur lors de la récupération des candidats: {str(e)}")
         return jsonify({
             "error": "Erreur serveur",
             "details": str(e)
@@ -323,37 +360,171 @@ def list_briefs():
         }), 500
 
 @bp.route('/api/cv', methods=['POST'])
+@bp.route('/api/cv/upload', methods=['POST'])
+@jwt_required()
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
 def upload_cv():
-    if 'file' not in request.files:
-        return jsonify({"error": "Aucun fichier fourni"}), 400
-    file = request.files['file']
-    file_path = os.path.join("uploads", file.filename)
-    os.makedirs("uploads", exist_ok=True)
-    file.save(file_path)
-    cv_text = extract_text_from_pdf(file_path)
-    if cv_text.startswith("Erreur"):
-        return jsonify({"error": cv_text}), 400
-    cv_data = analyze_cv(cv_text)
-    if "error" in cv_data:
-        return jsonify(cv_data), 500
-    brief = JobBrief.query.first()
-    if not brief:
-        return jsonify({"error": "Aucun brief trouvé"}), 404
-    job_desc = json.loads(brief.full_data)
-    score_result = calculate_cv_score(cv_data, job_desc)
-    visualize_scores(score_result)
-    report = generate_final_report(cv_text, cv_data, score_result, job_desc)
-    if "error" in report:
-        return jsonify(report), 500
-    candidate = Candidate(
-        name=file.filename.split('.')[0],
-        cv_analysis=json.dumps(cv_data),
-        predictive_score=0.0,
-        status="En évaluation"
-    )
-    db.session.add(candidate)
-    db.session.commit()
-    return jsonify({"message": "CV analysé avec succès", "cv_analysis": cv_data, "score": score_result, "report": report}), 201
+    try:
+        logger.info(f"Upload CV - Requête POST reçue de {request.remote_addr}")
+        logger.info(f"Upload CV - Headers: {dict(request.headers)}")
+        logger.info(f"Upload CV - Files: {list(request.files.keys())}")
+        logger.info(f"Upload CV - Form data: {dict(request.form)}")
+        
+        current_user_id = get_jwt_identity()
+        logger.info(f"Upload CV - User ID: {current_user_id}")
+        
+        if 'file' not in request.files:
+            return jsonify({"error": "Aucun fichier fourni"}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({"error": "Aucun fichier sélectionné"}), 400
+        
+        # Récupérer le brief_id depuis les données du formulaire (optionnel)
+        brief_id = request.form.get('brief_id')
+        if brief_id:
+            # Vérifier que le brief appartient à l'utilisateur connecté
+            brief = JobBrief.query.filter_by(id=brief_id, user_id=current_user_id).first()
+            if not brief:
+                return jsonify({"error": "Brief non trouvé ou non autorisé"}), 404
+        else:
+            # Utiliser le premier brief de l'utilisateur si aucun brief_id n'est spécifié
+            brief = JobBrief.query.filter_by(user_id=current_user_id).first()
+            if not brief:
+                return jsonify({"error": "Aucun brief trouvé pour cet utilisateur"}), 404
+            brief_id = brief.id
+        
+        # Sauvegarder le fichier
+        file_path = os.path.join("uploads", file.filename)
+        os.makedirs("uploads", exist_ok=True)
+        file.save(file_path)
+        
+        # Extraire le texte du PDF
+        cv_text = extract_text_from_pdf(file_path)
+        if cv_text.startswith("Erreur"):
+            return jsonify({"error": cv_text}), 400
+        
+        # Analyser le CV
+        cv_data = analyze_cv(cv_text)
+        if "error" in cv_data:
+            return jsonify(cv_data), 500
+        
+        # Récupérer les détails du poste
+        job_desc = json.loads(brief.full_data)
+        
+        # NOUVEAU: Utiliser le service de scoring amélioré
+        from .modules.scoring_service import ScoringService
+        
+        # Calculer les scores CV (3 premières dimensions)
+        cv_scores = ScoringService.calculate_cv_scores(cv_data, job_desc)
+        
+        # Pour l'instant, culture et interview sont à 0 (seront calculés plus tard)
+        all_scores = {
+            'skills_score': cv_scores['skills_score'],
+            'experience_score': cv_scores['experience_score'], 
+            'education_score': cv_scores['education_score'],
+            'culture_score': 0.0,
+            'interview_score': 0.0
+        }
+        
+        # Calculer le score prédictif basé sur les 3 scores disponibles
+        # Ajuster les poids temporairement (sans culture et interview)
+        temp_final_score = (
+            cv_scores['skills_score'] * 0.5 +  # 50%
+            cv_scores['experience_score'] * 0.3 +  # 30%
+            cv_scores['education_score'] * 0.2   # 20%
+        )
+        
+        # Générer les recommandations basées sur les scores actuels
+        recommendations_data = ScoringService.get_candidate_recommendation(temp_final_score, all_scores)
+        
+        # Ancien système pour rétrocompatibilité
+        score_result = calculate_cv_score(cv_data, job_desc)
+        visualize_scores(score_result)
+        report = generate_final_report(cv_text, cv_data, score_result, job_desc)
+        if "error" in report:
+            return jsonify(report), 500
+        
+        # Créer le candidat avec le nouveau système de scoring
+        candidate = Candidate(
+            name=file.filename.split('.')[0],
+            cv_analysis=json.dumps(cv_data),
+            
+            # Nouveau système: scores détaillés
+            skills_score=all_scores['skills_score'],
+            experience_score=all_scores['experience_score'],
+            education_score=all_scores['education_score'],
+            culture_score=all_scores['culture_score'],
+            interview_score=all_scores['interview_score'],
+            final_predictive_score=0.0,  # Sera calculé APRÈS l'évaluation finale
+            
+            # Ancien système (rétrocompatibilité)
+            predictive_score=0.0,  # Sera calculé APRÈS l'évaluation finale
+            
+            # Métadonnées
+            status="CV analysé",  # Statut indiquant que seul le CV est analysé
+            process_stage="cv_analysis",
+            brief_id=brief_id,
+            user_id=current_user_id,
+            
+            # Données détaillées
+            score_details=json.dumps({**score_result, **all_scores}),
+            recommendations=json.dumps([]),  # Vide jusqu'à l'évaluation finale
+            risks=json.dumps([])  # Vide jusqu'à l'évaluation finale
+        )
+        
+        db.session.add(candidate)
+        db.session.commit()
+        
+        logger.info(f"🎯 Candidat créé - ID: {candidate.id}, Score final: {temp_final_score:.1f}%")
+        logger.info(f"   Skills: {all_scores['skills_score']:.1f}% | Experience: {all_scores['experience_score']:.1f}% | Education: {all_scores['education_score']:.1f}%")
+        
+        logger.info(f"Candidat créé avec succès - ID: {candidate.id}, nom: {candidate.name}, brief_id: {candidate.brief_id}")
+        
+        # Préparer la réponse avec la structure attendue par le frontend
+        candidate_response = {
+            "id": candidate.id,
+            "name": candidate.name,
+            "cv_analysis": cv_data,  # Déjà un dict, pas besoin de parser
+            "predictive_score": candidate.predictive_score,
+            "status": candidate.status,
+            "brief_id": candidate.brief_id,
+            "score_details": score_result,  # Déjà un dict, pas besoin de parser
+            "report_summary": report.get('summary', ''),
+            "recommendations": report.get('recommendations', []),
+            "risks": report.get('risks', [])
+        }
+        
+        response_data = {
+            "message": "CV analysé avec succès",
+            "candidate": candidate_response,
+            "success": True
+        }
+        
+        logger.info(f"Réponse d'upload envoyée: {json.dumps(candidate_response, indent=2)}")
+        
+        return jsonify(response_data), 201
+        
+    except Exception as e:
+        logger.error(f"Erreur lors de l'upload du CV: {str(e)}")
+        return jsonify({"error": "Erreur lors de l'analyse du CV", "details": str(e)}), 500
+
+# Route OPTIONS explicite pour l'upload de CV
+@bp.route('/api/cv/upload', methods=['OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
+def upload_cv_options():
+    logger.info("Requête OPTIONS reçue pour /api/cv/upload")
+    return '', 200
 
 @bp.route('/api/cv/scores', methods=['GET'])
 def get_cv_scores():
@@ -401,15 +572,338 @@ def get_radar():
     return send_file("predictive_radar.png", mimetype='image/png')
 
 @bp.route('/api/candidates', methods=['GET'])
+@jwt_required()
 def get_candidates_api():
-    candidates = Candidate.query.all()
-    return jsonify([{
-        "id": c.id,
-        "name": c.name,
-        "cv_analysis": json.loads(c.cv_analysis) if c.cv_analysis else None,
-        "predictive_score": c.predictive_score,
-        "status": c.status,
-        "appreciations": [{"question": a.question, "category": a.category, "appreciation": a.appreciation, "score": a.score} for a in c.appreciations]
-    } for c in candidates])
+    try:
+        current_user_id = get_jwt_identity()
+        logger.info(f"API - Récupération des candidats pour l'utilisateur {current_user_id}")
+        candidates = Candidate.query.filter_by(user_id=current_user_id).all()
+        logger.info(f"API - Nombre de candidats trouvés: {len(candidates)}")
+        
+        candidates_data = []
+        for c in candidates:
+            # Parsing score_details
+            score_details = c.score_details
+            if isinstance(score_details, str):
+                try:
+                    score_details = json.loads(score_details)
+                except Exception:
+                    score_details = {}
+            elif score_details is None:
+                score_details = {}
+            
+            # Parsing risks
+            risks = c.risks
+            if isinstance(risks, str):
+                try:
+                    risks = json.loads(risks)
+                except Exception:
+                    risks = []
+            elif risks is None:
+                risks = []
+                
+            # Parsing recommendations
+            recommendations = c.recommendations
+            if isinstance(recommendations, str):
+                try:
+                    recommendations = json.loads(recommendations)
+                except Exception:
+                    recommendations = []
+            elif recommendations is None:
+                recommendations = []
+            
+            candidates_data.append({
+                "id": c.id,
+                "name": c.name,
+                "cv_analysis": json.loads(c.cv_analysis) if c.cv_analysis else None,
+                "predictive_score": c.predictive_score,
+                "status": c.status,
+                "brief_id": c.brief_id,
+                "user_id": c.user_id,
+                "score_details": score_details,
+                "risks": risks,
+                "recommendations": recommendations,
+                "appreciations": [{"question": a.question, "category": a.category, "appreciation": a.appreciation, "score": a.score} for a in c.appreciations]
+            })
+        
+        logger.info(f"API - Candidats retournés: {len(candidates_data)}")
+        return jsonify(candidates_data), 200
+    except Exception as e:
+        logger.error(f"API - Erreur lors de la récupération des candidats: {str(e)}")
+        return jsonify({"error": "Erreur serveur", "details": str(e)}), 500
 
-# Routes d'authentification déplacées vers auth.py
+# NOUVELLE API: Candidats avec système de scoring avancé
+@bp.route('/api/v2/candidates', methods=['GET'])
+@jwt_required()
+def get_candidates_v2():
+    """
+    API v2 pour récupérer les candidats avec le système de scoring à 5 dimensions
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        brief_id = request.args.get('brief_id', type=int)
+        process_stage = request.args.get('process_stage')
+        
+        # Construire la requête
+        query = Candidate.query.filter_by(user_id=current_user_id)
+        
+        if brief_id:
+            query = query.filter_by(brief_id=brief_id)
+        
+        if process_stage:
+            query = query.filter_by(process_stage=process_stage)
+        
+        candidates = query.order_by(Candidate.final_predictive_score.desc()).all()
+        
+        # Enrichir les données candidat
+        candidates_data = []
+        for candidate in candidates:
+            # Utiliser la nouvelle méthode to_dict()
+            candidate_dict = candidate.to_dict()
+            
+            # Ajouter des métadonnées utiles
+            candidate_dict['recommendation'] = ScoringService.get_candidate_recommendation(
+                candidate.final_predictive_score, 
+                candidate_dict['scores']
+            )
+            
+            candidate_dict['process_stage_label'] = ScoringService.get_process_stage_label(candidate.process_stage)
+            
+            candidates_data.append(candidate_dict)
+        
+        return jsonify({
+            'candidates': candidates_data,
+            'total': len(candidates_data),
+            'brief_id': brief_id,
+            'filters': {
+                'process_stage': process_stage
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur API v2 candidats: {str(e)}")
+        return jsonify({"error": "Erreur serveur", "details": str(e)}), 500
+
+@bp.route('/api/v2/candidates/<int:candidate_id>/advance-stage', methods=['POST'])
+@jwt_required()
+def advance_candidate_stage(candidate_id):
+    """
+    Faire avancer un candidat à l'étape suivante du processus
+    """
+    try:
+        current_user_id = get_jwt_identity()
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Progression des étapes
+        stage_progression = {
+            'cv_analysis': 'interview_questions_generated',
+            'interview_questions_generated': 'interview_evaluated', 
+            'interview_evaluated': 'final_assessment'
+        }
+        
+        next_stage = stage_progression.get(candidate.process_stage)
+        if not next_stage:
+            return jsonify({"error": "Candidat déjà à l'étape finale"}), 400
+        
+        candidate.process_stage = next_stage
+        db.session.commit()
+        
+        return jsonify({
+            "message": f"Candidat avancé à l'étape: {ScoringService.get_process_stage_label(next_stage)}",
+            "new_stage": next_stage,
+            "candidate": candidate.to_dict()
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur advancement candidat: {str(e)}")
+        return jsonify({"error": "Erreur serveur", "details": str(e)}), 500
+
+# Routes pour les questions d'entretien et l'évaluation finale
+
+@bp.route('/api/candidates/<int:candidate_id>/generate-interview-questions', methods=['POST'])
+@jwt_required()
+def generate_candidate_interview_questions(candidate_id):
+    """Génère les questions d'entretien pour un candidat"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Récupérer le candidat
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Récupérer le brief associé
+        brief = JobBrief.query.filter_by(id=candidate.brief_id).first()
+        if not brief:
+            return jsonify({"error": "Brief non trouvé"}), 404
+        
+        # Récupérer le contexte d'entreprise
+        context = CompanyContext.query.filter_by(id=brief.context_id).first()
+        context_data = {
+            "nom_entreprise": context.nom_entreprise if context else "",
+            "domaine": context.domaine if context else "",
+            "culture": context.description_culture if context else "",
+            "valeurs": json.loads(context.valeurs) if context and context.valeurs else []
+        }
+        
+        # Préparer les données pour la génération
+        cv_data = json.loads(candidate.cv_analysis) if candidate.cv_analysis else {}
+        job_data = json.loads(brief.full_data) if brief.full_data else {}
+        
+        # Générer les questions
+        questions = generate_interview_questions(cv_data, job_data, context_data)
+        
+        if "error" in questions:
+            return jsonify(questions), 500
+        
+        # Sauvegarder les questions
+        candidate.interview_questions = json.dumps(questions)
+        candidate.process_stage = PROCESS_STAGES['INTERVIEW_QUESTIONS']
+        candidate.status = CANDIDATE_STATUS['INTERVIEW_QUESTIONS_GENERATED']
+        
+        db.session.commit()
+        
+        logger.info(f"Questions d'entretien générées pour candidat {candidate_id}")
+        
+        return jsonify({
+            "success": True,
+            "questions": questions,
+            "candidate_id": candidate_id,
+            "status": candidate.status
+        }), 201
+        
+    except Exception as e:
+        logger.error(f"Erreur génération questions candidat {candidate_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la génération des questions", "details": str(e)}), 500
+
+@bp.route('/api/candidates/<int:candidate_id>/evaluate-interview', methods=['POST'])
+@jwt_required()
+def evaluate_candidate_interview(candidate_id):
+    """Évalue l'entretien d'un candidat et calcule les scores culture + entretien"""
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        
+        # Récupérer le candidat
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Récupérer les évaluations
+        evaluations = data.get('evaluations', [])
+        if not evaluations:
+            return jsonify({"error": "Aucune évaluation fournie"}), 400
+        
+        # Calculer les scores culture et entretien
+        culture_scores = []
+        interview_scores = []
+        
+        for evaluation in evaluations:
+            category = evaluation.get('category', '').lower()
+            score = float(evaluation.get('score', 0))
+            
+            if 'culture' in category or 'company' in category:
+                culture_scores.append(score)
+            else:
+                interview_scores.append(score)
+        
+        # Calculer les moyennes
+        culture_score = sum(culture_scores) / len(culture_scores) if culture_scores else 0
+        interview_score = sum(interview_scores) / len(interview_scores) if interview_scores else 0
+        
+        # Convertir en pourcentage (si les scores sont sur 5)
+        culture_score_pct = (culture_score / 5.0) * 100
+        interview_score_pct = (interview_score / 5.0) * 100
+        
+        # Mettre à jour le candidat
+        candidate.culture_score = culture_score_pct
+        candidate.interview_score = interview_score_pct
+        candidate.process_stage = PROCESS_STAGES['INTERVIEW_EVALUATION']
+        candidate.status = CANDIDATE_STATUS['INTERVIEW_EVALUATED']
+        
+        # Sauvegarder les évaluations détaillées
+        for evaluation in evaluations:
+            appreciation = Appreciation(
+                candidate_id=candidate_id,
+                question=evaluation.get('question', ''),
+                category=evaluation.get('category', ''),
+                appreciation=evaluation.get('appreciation', ''),
+                score=float(evaluation.get('score', 0))
+            )
+            db.session.add(appreciation)
+        
+        db.session.commit()
+        
+        logger.info(f"Entretien évalué pour candidat {candidate_id} - Culture: {culture_score_pct:.1f}%, Interview: {interview_score_pct:.1f}%")
+        
+        return jsonify({
+            "success": True,
+            "candidate_id": candidate_id,
+            "culture_score": culture_score_pct,
+            "interview_score": interview_score_pct,
+            "status": candidate.status,
+            "next_action": "Calcul du score prédictif final disponible"
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur évaluation entretien candidat {candidate_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de l'évaluation", "details": str(e)}), 500
+
+@bp.route('/api/candidates/<int:candidate_id>/finalize-evaluation', methods=['POST'])
+@jwt_required()
+def finalize_candidate_evaluation(candidate_id):
+    """Finalise l'évaluation d'un candidat et calcule le score prédictif final"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Récupérer le candidat
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Vérifier que l'entretien a été évalué
+        if candidate.culture_score == 0 or candidate.interview_score == 0:
+            return jsonify({"error": "L'entretien doit être évalué avant de finaliser"}), 400
+        
+        # Calculer le score prédictif final
+        result = ProcessManager.calculate_final_predictive_score(candidate_id)
+        
+        if "error" in result:
+            return jsonify(result), 500
+        
+        # Générer les recommandations et risques finaux
+        final_score = result['final_score']
+        recommendation_data = ProcessManager.get_recommendation_from_score(final_score)
+        
+        # Mettre à jour avec les recommandations finales
+        candidate.recommendations = json.dumps(recommendation_data)
+        candidate.risks = json.dumps([])  # À implémenter selon vos besoins
+        
+        db.session.commit()
+        
+        logger.info(f"Évaluation finalisée pour candidat {candidate_id} - Score final: {final_score:.2f}%")
+        
+        return jsonify({
+            "success": True,
+            "candidate_id": candidate_id,
+            "final_predictive_score": final_score,
+            "recommendation": recommendation_data,
+            "status": candidate.status,
+            "all_scores": {
+                "skills": candidate.skills_score,
+                "experience": candidate.experience_score,
+                "education": candidate.education_score,
+                "culture": candidate.culture_score,
+                "interview": candidate.interview_score
+            }
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur finalisation candidat {candidate_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la finalisation", "details": str(e)}), 500

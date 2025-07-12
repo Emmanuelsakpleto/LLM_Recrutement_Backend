@@ -27,7 +27,7 @@ def create_app():
         resources={r"/*": {
             "origins": ["http://localhost:8080", "https://technova-frontend.vercel.app"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"],
+            "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
             "supports_credentials": True,
             "expose_headers": ["Content-Range", "X-Total-Count"]
         }},
