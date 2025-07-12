@@ -765,8 +765,13 @@ def generate_candidate_interview_questions(candidate_id):
         if "error" in questions:
             return jsonify(questions), 500
         
-        # Sauvegarder les questions
-        candidate.interview_questions = json.dumps(questions)
+        # Sauvegarder les questions - s'assurer que c'est bien en JSON string
+        if isinstance(questions, dict):
+            candidate.interview_questions = json.dumps(questions)
+        else:
+            # Si c'est déjà une string JSON, l'utiliser directement
+            candidate.interview_questions = questions
+            
         candidate.process_stage = PROCESS_STAGES['INTERVIEW_QUESTIONS']
         candidate.status = CANDIDATE_STATUS['INTERVIEW_QUESTIONS_GENERATED']
         
@@ -1097,8 +1102,16 @@ def get_candidate_interview_questions(candidate_id):
         if not candidate.interview_questions:
             return jsonify({"error": "Aucune question d'entretien trouvée pour ce candidat"}), 404
         
-        # Récupérer les questions
-        questions = json.loads(candidate.interview_questions)
+        # Récupérer les questions - gérer le cas où c'est déjà un dict ou une string JSON
+        try:
+            if isinstance(candidate.interview_questions, str):
+                questions = json.loads(candidate.interview_questions)
+            else:
+                # Si c'est déjà un dict (cas d'erreur de sauvegarde précédente)
+                questions = candidate.interview_questions
+        except json.JSONDecodeError as e:
+            logger.error(f"Erreur parsing JSON questions candidat {candidate_id}: {str(e)}")
+            return jsonify({"error": "Erreur de format des questions stockées"}), 500
         
         logger.info(f"Questions d'entretien récupérées pour candidat {candidate_id}")
         
