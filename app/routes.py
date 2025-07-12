@@ -723,7 +723,13 @@ def advance_candidate_stage(candidate_id):
 
 # Routes pour les questions d'entretien et l'évaluation finale
 
-@bp.route('/api/candidates/<int:candidate_id>/generate-interview-questions', methods=['POST'])
+@bp.route('/api/candidates/<int:candidate_id>/generate-interview-questions', methods=['POST', 'OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
 @jwt_required()
 def generate_candidate_interview_questions(candidate_id):
     """Génère les questions d'entretien pour un candidat"""
@@ -780,7 +786,13 @@ def generate_candidate_interview_questions(candidate_id):
         db.session.rollback()
         return jsonify({"error": "Erreur lors de la génération des questions", "details": str(e)}), 500
 
-@bp.route('/api/candidates/<int:candidate_id>/evaluate-interview', methods=['POST'])
+@bp.route('/api/candidates/<int:candidate_id>/evaluate-interview', methods=['POST', 'OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
 @jwt_required()
 def evaluate_candidate_interview(candidate_id):
     """Évalue l'entretien d'un candidat et calcule les scores culture + entretien"""
@@ -854,7 +866,13 @@ def evaluate_candidate_interview(candidate_id):
         db.session.rollback()
         return jsonify({"error": "Erreur lors de l'évaluation", "details": str(e)}), 500
 
-@bp.route('/api/candidates/<int:candidate_id>/finalize-evaluation', methods=['POST'])
+@bp.route('/api/candidates/<int:candidate_id>/finalize-evaluation', methods=['POST', 'OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
 @jwt_required()
 def finalize_candidate_evaluation(candidate_id):
     """Finalise l'évaluation d'un candidat et calcule le score prédictif final"""
@@ -907,3 +925,190 @@ def finalize_candidate_evaluation(candidate_id):
         logger.error(f"Erreur finalisation candidat {candidate_id}: {str(e)}")
         db.session.rollback()
         return jsonify({"error": "Erreur lors de la finalisation", "details": str(e)}), 500
+
+# Routes OPTIONS pour CORS
+@bp.route('/api/candidates/<int:candidate_id>/generate-interview-questions', methods=['OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
+def generate_interview_questions_options(candidate_id):
+    return '', 200
+
+@bp.route('/api/candidates/<int:candidate_id>/evaluate-interview', methods=['OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
+def evaluate_interview_options(candidate_id):
+    return '', 200
+
+@bp.route('/api/candidates/<int:candidate_id>/finalize-evaluation', methods=['OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["POST", "OPTIONS"]
+)
+def finalize_evaluation_options(candidate_id):
+    return '', 200
+
+@bp.route('/api/candidates/<int:candidate_id>', methods=['OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["DELETE", "GET", "OPTIONS"]
+)
+def candidate_options(candidate_id):
+    return '', 200
+
+# Route pour supprimer un candidat
+@bp.route('/api/candidates/<int:candidate_id>', methods=['DELETE', 'OPTIONS'])
+@cross_origin(
+    supports_credentials=True,
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["DELETE", "OPTIONS"]
+)
+@jwt_required()
+def delete_candidate_api(candidate_id):
+    """Supprimer un candidat"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Récupérer le candidat
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Supprimer les appréciations associées
+        Appreciation.query.filter_by(candidate_id=candidate_id).delete()
+        
+        # Supprimer le candidat
+        db.session.delete(candidate)
+        db.session.commit()
+        
+        logger.info(f"Candidat {candidate_id} supprimé avec succès")
+        
+        return jsonify({
+            "success": True,
+            "message": "Candidat supprimé avec succès",
+            "candidate_id": candidate_id
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur suppression candidat {candidate_id}: {str(e)}")
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la suppression", "details": str(e)}), 500
+
+# Route pour récupérer un candidat spécifique
+@bp.route('/api/candidates/<int:candidate_id>', methods=['GET'])
+@jwt_required()
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["GET", "OPTIONS"]
+)
+def get_candidate_by_id_api(candidate_id):
+    """Récupérer un candidat spécifique"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Parsing des données JSON
+        cv_analysis = json.loads(candidate.cv_analysis) if candidate.cv_analysis else None
+        score_details = json.loads(candidate.score_details) if candidate.score_details else {}
+        interview_questions = json.loads(candidate.interview_questions) if candidate.interview_questions else []
+        recommendations = json.loads(candidate.recommendations) if candidate.recommendations else []
+        risks = json.loads(candidate.risks) if candidate.risks else []
+        
+        candidate_data = {
+            "id": candidate.id,
+            "name": candidate.name,
+            "cv_analysis": cv_analysis,
+            "predictive_score": candidate.predictive_score,
+            "status": candidate.status,
+            "process_stage": candidate.process_stage,
+            "brief_id": candidate.brief_id,
+            "user_id": candidate.user_id,
+            
+            # Scores détaillés
+            "skills_score": candidate.skills_score,
+            "experience_score": candidate.experience_score,
+            "education_score": candidate.education_score,
+            "culture_score": candidate.culture_score,
+            "interview_score": candidate.interview_score,
+            "final_predictive_score": candidate.final_predictive_score,
+            
+            # Données détaillées
+            "score_details": score_details,
+            "interview_questions": interview_questions,
+            "recommendations": recommendations,
+            "risks": risks,
+            
+            # Appréciations
+            "appreciations": [
+                {
+                    "id": a.id,
+                    "candidate_id": a.candidate_id,
+                    "question": a.question,
+                    "category": a.category,
+                    "appreciation": a.appreciation,
+                    "score": a.score
+                }
+                for a in candidate.appreciations
+            ] if candidate.appreciations else []
+        }
+        
+        return jsonify(candidate_data), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération candidat {candidate_id}: {str(e)}")
+        return jsonify({"error": "Erreur serveur", "details": str(e)}), 500
+
+@bp.route('/api/candidates/<int:candidate_id>/interview-questions', methods=['GET', 'OPTIONS'])
+@cross_origin(
+    supports_credentials=True, 
+    origins=["http://localhost:8080", "https://technova-frontend.vercel.app"], 
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin", "Cache-Control"],
+    methods=["GET", "OPTIONS"]
+)
+@jwt_required()
+def get_candidate_interview_questions(candidate_id):
+    """Récupère les questions d'entretien existantes pour un candidat"""
+    try:
+        current_user_id = get_jwt_identity()
+        
+        # Récupérer le candidat
+        candidate = Candidate.query.filter_by(id=candidate_id, user_id=current_user_id).first()
+        if not candidate:
+            return jsonify({"error": "Candidat non trouvé"}), 404
+        
+        # Vérifier si des questions existent
+        if not candidate.interview_questions:
+            return jsonify({"error": "Aucune question d'entretien trouvée pour ce candidat"}), 404
+        
+        # Récupérer les questions
+        questions = json.loads(candidate.interview_questions)
+        
+        logger.info(f"Questions d'entretien récupérées pour candidat {candidate_id}")
+        
+        return jsonify({
+            "success": True,
+            "questions": questions,
+            "candidate_id": candidate_id,
+            "status": candidate.status
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Erreur récupération questions candidat {candidate_id}: {str(e)}")
+        return jsonify({"error": "Erreur lors de la récupération des questions", "details": str(e)}), 500
