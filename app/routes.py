@@ -592,6 +592,23 @@ def get_candidates_api():
             elif score_details is None:
                 score_details = {}
             
+            # S'assurer que les scores directs sont inclus dans score_details
+            if not score_details:
+                score_details = {}
+            
+            # Construire les score_details à partir des colonnes individuelles de la base
+            # Ceci remplace les valeurs obsolètes stockées en JSON par les vraies valeurs
+            if hasattr(c, 'skills_score') and c.skills_score is not None:
+                score_details['skills_score'] = c.skills_score
+            if hasattr(c, 'experience_score') and c.experience_score is not None:
+                score_details['experience_score'] = c.experience_score
+            if hasattr(c, 'education_score') and c.education_score is not None:
+                score_details['education_score'] = c.education_score
+            if c.culture_score is not None:
+                score_details['culture_score'] = c.culture_score
+            if c.interview_score is not None:
+                score_details['interview_score'] = c.interview_score
+            
             # Parsing risks
             risks = c.risks
             if isinstance(risks, str):
@@ -620,6 +637,8 @@ def get_candidates_api():
                 "status": c.status,
                 "brief_id": c.brief_id,
                 "user_id": c.user_id,
+                "culture_score": c.culture_score,
+                "interview_score": c.interview_score,
                 "score_details": score_details,
                 "risks": risks,
                 "recommendations": recommendations,
@@ -627,6 +646,11 @@ def get_candidates_api():
             })
         
         logger.info(f"API - Candidats retournés: {len(candidates_data)}")
+        
+        # Log détaillé des scores pour debug
+        for candidate_data in candidates_data:
+            logger.info(f"Candidat {candidate_data['name']} - Culture: {candidate_data.get('culture_score')}, Interview: {candidate_data.get('interview_score')}, Score details: {candidate_data.get('score_details')}")
+        
         return jsonify(candidates_data), 200
     except Exception as e:
         logger.error(f"API - Erreur lors de la récupération des candidats: {str(e)}")
@@ -819,22 +843,35 @@ def evaluate_candidate_interview(candidate_id):
         culture_scores = []
         interview_scores = []
         
+        logger.info(f"Début calcul scores pour candidat {candidate_id}")
+        
         for evaluation in evaluations:
             category = evaluation.get('category', '').lower()
             score = float(evaluation.get('score', 0))
             
+            logger.info(f"Évaluation: catégorie='{category}', score={score}")
+            
             if 'culture' in category or 'company' in category:
                 culture_scores.append(score)
+                logger.info(f"-> Ajouté à culture_scores: {score}")
             else:
                 interview_scores.append(score)
+                logger.info(f"-> Ajouté à interview_scores: {score}")
+        
+        logger.info(f"Culture scores: {culture_scores}")
+        logger.info(f"Interview scores: {interview_scores}")
         
         # Calculer les moyennes
         culture_score = sum(culture_scores) / len(culture_scores) if culture_scores else 0
         interview_score = sum(interview_scores) / len(interview_scores) if interview_scores else 0
         
+        logger.info(f"Moyennes calculées - Culture: {culture_score}, Interview: {interview_score}")
+        
         # Convertir en pourcentage (si les scores sont sur 5)
         culture_score_pct = (culture_score / 5.0) * 100
         interview_score_pct = (interview_score / 5.0) * 100
+        
+        logger.info(f"Pourcentages - Culture: {culture_score_pct}%, Interview: {interview_score_pct}%")
         
         # Mettre à jour le candidat
         candidate.culture_score = culture_score_pct
