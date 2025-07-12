@@ -60,7 +60,7 @@ def login():
         if not user or not check_password_hash(user.password, password):
             return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
 
-        access_token = create_access_token(identity=user.id)
+        access_token = create_access_token(identity=str(user.id))
         logger.info('Connexion réussie pour %s', email)  # Remplace app.logger par logger
 
         return jsonify({

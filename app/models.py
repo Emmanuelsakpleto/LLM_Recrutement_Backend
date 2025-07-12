@@ -35,6 +35,7 @@ class Candidate(db.Model):
 
 class CompanyContext(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     values = db.Column(db.Text, nullable=False)
     culture = db.Column(db.Text, nullable=False)
 

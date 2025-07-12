@@ -9,7 +9,16 @@ from flask_cors import CORS, cross_origin
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from . import db
 from .models import JobBrief, CompanyContext, InterviewQuestion, Candidate, Appreciation, User
-from .modules.llms import generate_job_description, patch_job_description_required_years
+from .modules.llms import (
+    generate_job_description,
+    extract_text_from_pdf,
+    analyze_cv,
+    calculate_cv_score,
+    visualize_scores,
+    generate_final_report,
+    generate_interview_questions,
+    generate_predictive_analysis
+)
 from reportlab.pdfgen import canvas
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, ListFlowable, ListItem
 from reportlab.lib.styles import getSampleStyleSheet
@@ -18,9 +27,36 @@ from reportlab.lib import colors
 from app.utils.therecruit_pdf_template import create_therecruit_pdf
 
 
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('routes', __name__)
+
+# --- ROUTES CONTEXTES ENTREPRISE ---
+@bp.route('/api/context', methods=['GET'])
+@jwt_required()
+def get_contexts():
+    current_user_id = get_jwt_identity()
+    contexts = CompanyContext.query.filter_by(user_id=current_user_id).all()
+    return jsonify([
+        {
+            'id': c.id,
+            'nom_entreprise': getattr(c, 'nom_entreprise', ''),
+            'domaine': getattr(c, 'domaine', ''),
+            'values': json.loads(c.values) if c.values else [],
+            'culture': getattr(c, 'culture', '')
+        } for c in contexts
+    ])
+@bp.route('/api/context', methods=['POST'])
+@jwt_required()
+def create_context():
+    data = request.get_json()
+    current_user_id = get_jwt_identity()
+    values_json = json.dumps(data['values'])
+    context = CompanyContext(user_id=current_user_id, values=values_json, culture=data['culture'])
+    db.session.add(context)
+    db.session.commit()
+    return jsonify({"message": "Contexte créé", "context_id": context.id}), 201
 
 @bp.route('/job-briefs', methods=['POST'])
 @jwt_required() # Réactiver le décorateur JWT
@@ -37,7 +73,7 @@ def create_brief():
             "experience": data.get("experience", "3-5 ans"),
             "description": data.get("description", "")
         })
-        full_data = patch_job_description_required_years(full_data, data.get("experience", "3-5 ans"))
+        # Suppression du patch inutile sur full_data
         if not full_data or not isinstance(full_data, dict) or not all(k in full_data for k in ["title", "description", "skills", "responsibilities", "qualifications", "required_experience_years", "required_degree"]):
             logger.error(f"Fiche de poste LLM invalide ou vide : {full_data}")
             return jsonify({"error": "La génération de la fiche de poste a échoué. Veuillez réessayer ou modifier les paramètres."}), 502
@@ -63,7 +99,7 @@ def create_brief():
 
 @bp.route('/job-briefs', methods=['GET'])
 @jwt_required()
-def list_briefs():
+def list_briefs_user():
     try:
         current_user_id = get_jwt_identity()
         logger.info(f"Récupération des briefs pour l'utilisateur {current_user_id}")
@@ -111,7 +147,7 @@ def update_brief(brief_id):
                 })
                 if full_description:
                     # Patch robustesse expérience (stagiaire, 0-1 ans, etc.)
-                    full_description = patch_job_description_required_years(full_description, data.get('experience', brief.experience))
+                    # Suppression du patch inutile sur full_description
                     data['full_data'] = full_description
                     data['skills'] = full_description.get('skills', json.loads(brief.skills) if isinstance(brief.skills, str) else brief.skills)
                     data['description'] = full_description.get('description', data.get('description', brief.description))
@@ -317,31 +353,6 @@ def upload_cv():
 def get_cv_scores():
     return send_file("cv_scores.png", mimetype='image/png')
 
-@bp.route('/api/context', methods=['POST'])
-def create_context():
-    data = request.get_json()
-    # Conversion de la liste en JSON string
-    values_json = json.dumps(data['values'])
-    context = CompanyContext(values=values_json, culture=data['culture'])
-    db.session.add(context)
-    db.session.commit()
-    brief = JobBrief.query.first()
-    if not brief:
-        return jsonify({"error": "Aucun brief trouvé"}), 404
-    job_desc = json.loads(brief.full_data)
-    candidate = Candidate.query.first()
-    if not candidate:
-        return jsonify({"error": "Aucun candidat trouvé"}), 404
-    cv_data = json.loads(candidate.cv_analysis)
-    score_result = calculate_cv_score(cv_data, job_desc)
-    questions = generate_interview_questions(job_desc, cv_data, score_result)
-    if "error" in questions:
-        return jsonify(questions), 500
-    for q in questions['questions']:
-        question = InterviewQuestion(question=q['question'], category=q['category'], purpose=q['purpose'])
-        db.session.add(question)
-    db.session.commit()
-    return jsonify({"message": "Contexte créé et questions générées", "questions": questions['questions']}), 201
 
 @bp.route('/api/context/questions', methods=['GET'])
 def get_questions():
@@ -384,7 +395,7 @@ def get_radar():
     return send_file("predictive_radar.png", mimetype='image/png')
 
 @bp.route('/api/candidates', methods=['GET'])
-def get_candidates():
+def get_candidates_api():
     candidates = Candidate.query.all()
     return jsonify([{
         "id": c.id,

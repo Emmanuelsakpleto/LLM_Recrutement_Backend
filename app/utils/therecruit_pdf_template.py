@@ -3,7 +3,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 
-def create_therecruit_pdf(buffer, content, title="Fiche de poste"):
+def create_therecruit_pdf(buffer, content, title="Fiche"):
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
     story = []
