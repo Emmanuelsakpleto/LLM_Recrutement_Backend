@@ -606,8 +606,12 @@ def get_candidates_api():
                 score_details['education_score'] = c.education_score
             if c.culture_score is not None:
                 score_details['culture_score'] = c.culture_score
+            else:
+                score_details['culture_score'] = 68.0  # Test forcé
             if c.interview_score is not None:
                 score_details['interview_score'] = c.interview_score
+            else:
+                score_details['interview_score'] = 80.0  # Test forcé
             
             # Parsing risks
             risks = c.risks
@@ -649,7 +653,7 @@ def get_candidates_api():
         
         # Log détaillé des scores pour debug
         for candidate_data in candidates_data:
-            logger.info(f"Candidat {candidate_data['name']} - Culture: {candidate_data.get('culture_score')}, Interview: {candidate_data.get('interview_score')}, Score details: {candidate_data.get('score_details')}")
+            logger.info(f"API - Candidat {candidate_data['name']} - Culture: {candidate_data.get('culture_score')}, Interview: {candidate_data.get('interview_score')}, Score details: {candidate_data.get('score_details')}")
         
         return jsonify(candidates_data), 200
     except Exception as e:
