@@ -43,8 +43,8 @@ def get_contexts():
             'id': c.id,
             'nom_entreprise': getattr(c, 'nom_entreprise', ''),
             'domaine': getattr(c, 'domaine', ''),
-            'values': json.loads(c.values) if c.values else [],
-            'culture': getattr(c, 'culture', '')
+            'values': json.loads(c.valeurs) if c.valeurs else [],
+            'culture': getattr(c, 'description_culture', '')
         } for c in contexts
     ])
 @bp.route('/api/context', methods=['POST'])
@@ -53,7 +53,13 @@ def create_context():
     data = request.get_json()
     current_user_id = get_jwt_identity()
     values_json = json.dumps(data['values'])
-    context = CompanyContext(user_id=current_user_id, values=values_json, culture=data['culture'])
+    context = CompanyContext(
+        user_id=current_user_id, 
+        nom_entreprise=data.get('nom_entreprise', ''),
+        domaine=data.get('domaine', ''),
+        valeurs=values_json, 
+        description_culture=data.get('culture', '')
+    )
     db.session.add(context)
     db.session.commit()
     return jsonify({"message": "Contexte créé", "context_id": context.id}), 201

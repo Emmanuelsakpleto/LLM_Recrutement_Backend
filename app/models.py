@@ -36,8 +36,10 @@ class Candidate(db.Model):
 class CompanyContext(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    values = db.Column(db.Text, nullable=False)
-    culture = db.Column(db.Text, nullable=False)
+    nom_entreprise = db.Column(db.String(200), nullable=True)
+    domaine = db.Column(db.String(200), nullable=True)
+    valeurs = db.Column(db.Text, nullable=False)
+    description_culture = db.Column(db.Text, nullable=False)
 
 class InterviewQuestion(db.Model):
     id = db.Column(db.Integer, primary_key=True)
