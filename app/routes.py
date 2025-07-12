@@ -903,9 +903,32 @@ def finalize_candidate_evaluation(candidate_id):
         final_score = result['final_score']
         recommendation_data = ProcessManager.get_recommendation_from_score(final_score)
         
-        # Mettre à jour avec les recommandations finales
+        # Créer les données radar pour les 5 dimensions
+        radar_data = {
+            "Compétences": candidate.skills_score,
+            "Expérience": candidate.experience_score,
+            "Formation": candidate.education_score,
+            "Culture": candidate.culture_score,
+            "Entretien": candidate.interview_score
+        }
+        
+        # Générer des risques basés sur les scores faibles
+        risks = []
+        if candidate.skills_score < 60:
+            risks.append("Compétences techniques insuffisantes")
+        if candidate.experience_score < 60:
+            risks.append("Expérience professionnelle limitée")
+        if candidate.education_score < 60:
+            risks.append("Formation académique inadéquate")
+        if candidate.culture_score < 60:
+            risks.append("Inadéquation culturelle avec l'entreprise")
+        if candidate.interview_score < 60:
+            risks.append("Performance d'entretien décevante")
+        
+        # Mettre à jour avec les données finales
         candidate.recommendations = json.dumps(recommendation_data)
-        candidate.risks = json.dumps([])  # À implémenter selon vos besoins
+        candidate.risks = json.dumps(risks)
+        candidate.radar_data = json.dumps(radar_data)
         
         db.session.commit()
         
@@ -915,7 +938,11 @@ def finalize_candidate_evaluation(candidate_id):
             "success": True,
             "candidate_id": candidate_id,
             "final_predictive_score": final_score,
+            "predictive_score": final_score,  # Rétrocompatibilité
             "recommendation": recommendation_data,
+            "recommendations": [recommendation_data],  # Format tableau pour le frontend
+            "risks": risks,
+            "radar_data": radar_data,
             "status": candidate.status,
             "all_scores": {
                 "skills": candidate.skills_score,
