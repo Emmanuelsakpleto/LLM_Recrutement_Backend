@@ -325,42 +325,62 @@ def generate_questions_for_category(prompt, category, model="gemini-1.5-flash", 
     gen_model = genai.GenerativeModel(model)
     for attempt in range(max_attempts):
         try:
+            logger.info(f"🎯 Génération questions pour {category} (tentative {attempt + 1})")
             response = gen_model.generate_content(prompt)
             raw_response = response.text.strip()
+            
+            # Sauvegarder la réponse pour debug
             with open(f"debug_response_{category}.txt", "w", encoding="utf-8") as f:
                 f.write(raw_response)
-            print(f"Réponse brute pour {category} (tentative {attempt + 1}): {raw_response[:500]}...")
+            
+            logger.info(f"📝 Réponse brute pour {category}: {raw_response[:200]}...")
 
-            json_match = re.search(r'\{[\s\S]*\}', raw_response)
+            # Nettoyer la réponse en supprimant les balises markdown
+            cleaned_response = re.sub(r'^```json\n|```$', '', raw_response, flags=re.MULTILINE).strip()
+            
+            # Chercher le JSON
+            json_match = re.search(r'\{[\s\S]*\}', cleaned_response)
             if not json_match:
-                print(f"Tentative {attempt + 1} ({category}): Aucun JSON valide.")
+                logger.warning(f"⚠️ Tentative {attempt + 1} ({category}): Aucun JSON valide trouvé")
                 if attempt < max_attempts - 1:
                     time.sleep(2)
                     continue
+                logger.error(f"❌ Échec final pour {category}: Aucun JSON valide")
                 return None
 
+            # Parser le JSON
             questions_data = json.loads(json_match.group(0))
             questions = questions_data.get("questions", [])
+            
+            logger.info(f"📊 {len(questions)} questions trouvées pour {category}")
+            
             if len(questions) != 5:
-                print(f"Tentative {attempt + 1} ({category}): {len(questions)} questions reçues.")
+                logger.warning(f"⚠️ Tentative {attempt + 1} ({category}): {len(questions)} questions au lieu de 5")
                 if attempt < max_attempts - 1:
                     time.sleep(2)
                     continue
+                logger.error(f"❌ Échec final pour {category}: Nombre incorrect de questions")
                 return None
 
+            logger.info(f"✅ Questions générées avec succès pour {category}")
             return questions
+            
         except json.JSONDecodeError as e:
-            print(f"Tentative {attempt + 1} ({category}): Erreur JSON : {str(e)}")
+            logger.error(f"❌ Tentative {attempt + 1} ({category}): Erreur JSON : {str(e)}")
             if attempt < max_attempts - 1:
                 time.sleep(2)
                 continue
+            logger.error(f"❌ Échec final pour {category}: Erreur JSON")
             return None
         except Exception as e:
-            print(f"Tentative {attempt + 1} ({category}): Erreur : {str(e)}")
+            logger.error(f"❌ Tentative {attempt + 1} ({category}): Erreur générale : {str(e)}")
             if attempt < max_attempts - 1:
                 time.sleep(2)
                 continue
+            logger.error(f"❌ Échec final pour {category}: Erreur générale")
             return None
+    
+    logger.error(f"❌ Échec complet pour {category} après {max_attempts} tentatives")
     return None
 
 def generate_interview_questions(job_description, cv_data, score_result, model="gemini-1.5-flash"):
@@ -379,31 +399,84 @@ def generate_interview_questions(job_description, cv_data, score_result, model="
 
         prompts = {
             "Job_Description": f"""
-            Générez 5 questions d'entretien pour un poste de {job_title} (compétences: {job_skills}, {required_years} ans d'expérience).
-            Retournez un JSON avec "questions": liste de 5 objets (category: "Job Description", question, purpose).
-            JSON valide uniquement.
+            Créez exactement 5 questions d'entretien RH pour évaluer un candidat au poste de {job_title}.
+            Compétences requises: {job_skills}
+            Expérience requise: {required_years} ans
+            
+            Retournez UNIQUEMENT un JSON avec cette structure exacte:
+            {{
+                "questions": [
+                    {{"category": "Job Description", "question": "Question technique 1?", "purpose": "Évaluer compétence X"}},
+                    {{"category": "Job Description", "question": "Question technique 2?", "purpose": "Évaluer compétence Y"}},
+                    {{"category": "Job Description", "question": "Question technique 3?", "purpose": "Évaluer compétence Z"}},
+                    {{"category": "Job Description", "question": "Question technique 4?", "purpose": "Évaluer expérience"}},
+                    {{"category": "Job Description", "question": "Question technique 5?", "purpose": "Évaluer approche"}}
+                ]
+            }}
             """,
             "Company_Culture": f"""
-            Générez 5 questions d'entretien sur la culture d'entreprise chez TechNova ({company_context}).
-            Retournez un JSON avec "questions": liste de 5 objets (category: "Company Culture", question, purpose).
-            JSON valide uniquement.
+            Créez exactement 5 questions d'entretien RH pour évaluer l'adéquation culturelle d'un candidat.
+            Contexte entreprise: {company_context}
+            
+            Retournez UNIQUEMENT un JSON avec cette structure exacte:
+            {{
+                "questions": [
+                    {{"category": "Company Culture", "question": "Question culture 1?", "purpose": "Évaluer valeur innovation"}},
+                    {{"category": "Company Culture", "question": "Question culture 2?", "purpose": "Évaluer collaboration"}},
+                    {{"category": "Company Culture", "question": "Question culture 3?", "purpose": "Évaluer transparence"}},
+                    {{"category": "Company Culture", "question": "Question culture 4?", "purpose": "Évaluer impact client"}},
+                    {{"category": "Company Culture", "question": "Question culture 5?", "purpose": "Évaluer adaptation"}}
+                ]
+            }}
             """,
             "CV_Professional_Life": f"""
-            Générez 5 questions d'entretien basées sur le CV (compétences: {cv_skills}, formation: {cv_education}, score d'expérience: {experience_score:.1f}%).
-            Retournez un JSON avec "questions": liste de 5 objets (category: "CV/Professional Life", question, purpose).
-            JSON valide uniquement.
+            Créez exactement 5 questions d'entretien RH basées sur le profil du candidat.
+            Compétences candidat: {cv_skills}
+            Formation: {cv_education}
+            Score d'expérience: {experience_score:.1f}%
+            
+            Retournez UNIQUEMENT un JSON avec cette structure exacte:
+            {{
+                "questions": [
+                    {{"category": "CV/Professional Life", "question": "Question expérience 1?", "purpose": "Approfondir expérience"}},
+                    {{"category": "CV/Professional Life", "question": "Question expérience 2?", "purpose": "Valider compétences"}},
+                    {{"category": "CV/Professional Life", "question": "Question expérience 3?", "purpose": "Comprendre projets"}},
+                    {{"category": "CV/Professional Life", "question": "Question expérience 4?", "purpose": "Évaluer formation"}},
+                    {{"category": "CV/Professional Life", "question": "Question expérience 5?", "purpose": "Mesurer ambition"}}
+                ]
+            }}
             """
         }
 
         all_questions = []
-        for category in prompts:
-            questions = generate_questions_for_category(prompts[category], category.replace("/", "_"), model)
-            if questions is None:
-                return {"error": f"Échec de la génération des questions pour {category}."}
-            all_questions.extend(questions)
+        
+        # Tentative de génération avec l'API Gemini
+        try:
+            logger.info("🚀 Tentative de génération avec l'API Gemini")
+            for category in prompts:
+                questions = generate_questions_for_category(prompts[category], category.replace("/", "_"), model)
+                if questions is None:
+                    logger.warning(f"⚠️ Échec API pour {category}, utilisation du fallback")
+                    # En cas d'échec d'une catégorie, utiliser le fallback complet
+                    fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
+                    logger.info("✅ Questions de fallback générées avec succès")
+                    return fallback_result
+                all_questions.extend(questions)
 
-        if len(all_questions) != 15:
-            return {"error": f"Nombre incorrect de questions générées: {len(all_questions)}."}
+            if len(all_questions) != 15:
+                logger.warning(f"⚠️ Nombre incorrect de questions ({len(all_questions)}), utilisation du fallback")
+                fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
+                logger.info("✅ Questions de fallback générées avec succès")
+                return fallback_result
+                
+            logger.info("✅ Questions API générées avec succès")
+            
+        except Exception as api_error:
+            logger.error(f"❌ Erreur API Gemini: {str(api_error)}")
+            logger.info("🔄 Basculement vers le système de fallback")
+            fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
+            logger.info("✅ Questions de fallback générées avec succès")
+            return fallback_result
 
         questions_data = {"questions": all_questions}
 
@@ -412,7 +485,15 @@ def generate_interview_questions(job_description, cv_data, score_result, model="
 
         return questions_data
     except Exception as e:
-        return {"error": f"Erreur générale : {str(e)}"}
+        logger.error(f"❌ Erreur générale dans generate_interview_questions: {str(e)}")
+        # Dernier recours : fallback même en cas d'erreur générale
+        try:
+            fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
+            logger.info("✅ Questions de fallback générées en dernier recours")
+            return fallback_result
+        except Exception as fallback_error:
+            logger.error(f"❌ Échec complet, même le fallback: {str(fallback_error)}")
+            return {"error": f"Erreur générale : {str(e)}"}
 
 def collect_rh_appreciations(questions_data):
     valid_appreciations = {
@@ -440,14 +521,18 @@ def collect_rh_appreciations(questions_data):
 
     return appreciations
 
-def generate_predictive_analysis(job_description, cv_data, score_result, questions_data, model="gemini-1.5-flash", max_attempts=3):
+def generate_predictive_analysis(job_description, cv_data, score_result, questions_data, appreciations_data=None, model="gemini-1.5-flash", max_attempts=3):
     try:
         if not job_description or "error" in cv_data or "error" in score_result or not questions_data:
             return {"error": "Données manquantes ou invalides."}
 
         gen_model = genai.GenerativeModel(model)
 
-        appreciations = collect_rh_appreciations(questions_data)
+        # Utiliser les appréciations transmises ou les collecter interactivement
+        if appreciations_data:
+            appreciations = appreciations_data
+        else:
+            appreciations = collect_rh_appreciations(questions_data)
 
         interview_score = [a["score"] for a in appreciations]
         interview_avg = sum(interview_score) / len(interview_score)
@@ -575,3 +660,47 @@ def cleanup_memory():
     
     # Forcer le garbage collector
     gc.collect()
+
+def generate_fallback_questions(job_description, cv_data, score_result):
+    """Génère des questions de fallback quand l'API échoue"""
+    
+    job_title = job_description.get("title", "Développeur")
+    job_skills = job_description.get("skills", [])
+    cv_skills = cv_data.get("Compétences", [])
+    cv_education = cv_data.get("Formations", [{}])[0].get("diplôme", "Formation non spécifiée")
+    
+    # Questions techniques basées sur le poste
+    job_questions = [
+        {"category": "Job Description", "question": f"Pouvez-vous me parler de votre expérience avec {job_skills[0] if job_skills else 'les technologies principales'} ?", "purpose": "Évaluer compétences techniques"},
+        {"category": "Job Description", "question": f"Comment aborderiez-vous un projet complexe en tant que {job_title} ?", "purpose": "Évaluer approche méthodologique"},
+        {"category": "Job Description", "question": "Décrivez-moi un défi technique que vous avez récemment résolu et votre approche.", "purpose": "Évaluer résolution de problèmes"},
+        {"category": "Job Description", "question": f"Quelles sont selon vous les qualités essentielles d'un bon {job_title} ?", "purpose": "Évaluer compréhension du rôle"},
+        {"category": "Job Description", "question": "Comment vous tenez-vous informé des dernières tendances dans votre domaine ?", "purpose": "Évaluer curiosité technique"},
+    ]
+    
+    # Questions culture d'entreprise
+    culture_questions = [
+        {"category": "Company Culture", "question": "Comment définiriez-vous l'innovation dans votre travail quotidien ?", "purpose": "Évaluer esprit d'innovation"},
+        {"category": "Company Culture", "question": "Décrivez une situation où vous avez dû collaborer étroitement avec une équipe.", "purpose": "Évaluer collaboration"},
+        {"category": "Company Culture", "question": "Comment gérez-vous la communication dans un environnement de travail transparent ?", "purpose": "Évaluer transparence"},
+        {"category": "Company Culture", "question": "Donnez-moi un exemple de comment vous avez amélioré l'expérience d'un client/utilisateur.", "purpose": "Évaluer orientation client"},
+        {"category": "Company Culture", "question": "Comment vous adaptez-vous aux changements rapides dans un environnement startup ?", "purpose": "Évaluer adaptabilité"},
+    ]
+    
+    # Questions CV/Expérience personnalisées
+    cv_questions = []
+    if cv_skills:
+        cv_questions.append({"category": "CV/Professional Life", "question": f"Je vois que vous maîtrisez {cv_skills[0]}. Pouvez-vous me donner un exemple concret d'utilisation ?", "purpose": "Approfondir compétences"})
+    else:
+        cv_questions.append({"category": "CV/Professional Life", "question": "Parlez-moi de vos principales compétences techniques.", "purpose": "Identifier compétences"})
+    
+    cv_questions.extend([
+        {"category": "CV/Professional Life", "question": f"Votre formation en {cv_education} vous a-t-elle préparé à ce rôle ? Comment ?", "purpose": "Évaluer formation"},
+        {"category": "CV/Professional Life", "question": "Décrivez-moi le projet dont vous êtes le plus fier dans votre parcours.", "purpose": "Comprendre réalisations"},
+        {"category": "CV/Professional Life", "question": "Quels sont vos objectifs de carrière à moyen terme ?", "purpose": "Mesurer ambition"},
+        {"category": "CV/Professional Life", "question": "Comment évaluez-vous votre progression professionnelle jusqu'à présent ?", "purpose": "Auto-évaluation"},
+    ])
+    
+    all_questions = job_questions + culture_questions + cv_questions
+    
+    return {"questions": all_questions}

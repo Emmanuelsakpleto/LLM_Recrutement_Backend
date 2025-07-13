@@ -559,9 +559,24 @@ def evaluate_candidate(candidate_id):
     job_desc = json.loads(brief.full_data)
     score_result = calculate_cv_score(cv_data, job_desc)
     questions = {"questions": [{"question": q.question, "category": q.category, "purpose": q.purpose} for q in InterviewQuestion.query.all()]}
-    analysis = generate_predictive_analysis(job_desc, cv_data, score_result, questions)
+    
+    # Préparer les appréciations pour l'analyse prédictive
+    appreciations_for_analysis = []
+    for app in appreciations:
+        appreciations_for_analysis.append({
+            "question": app['question'],
+            "category": app['category'],
+            "appreciation": app['appreciation'],
+            "score": app['score']
+        })
+    
+    analysis = generate_predictive_analysis(job_desc, cv_data, score_result, questions, appreciations_for_analysis)
     if "error" in analysis:
         return jsonify(analysis), 500
+    
+    # Sauvegarder les risques et recommandations générées
+    candidate.risks = json.dumps(analysis.get('risks', []))
+    candidate.recommendations = json.dumps(analysis.get('recommendations', []))
     candidate.predictive_score = analysis['predictive_score']
     candidate.status = "Évalué"
     db.session.commit()
@@ -606,12 +621,8 @@ def get_candidates_api():
                 score_details['education_score'] = c.education_score
             if c.culture_score is not None:
                 score_details['culture_score'] = c.culture_score
-            else:
-                score_details['culture_score'] = 68.0  # Test forcé
             if c.interview_score is not None:
                 score_details['interview_score'] = c.interview_score
-            else:
-                score_details['interview_score'] = 80.0  # Test forcé
             
             # Parsing risks
             risks = c.risks
@@ -787,8 +798,16 @@ def generate_candidate_interview_questions(candidate_id):
         cv_data = json.loads(candidate.cv_analysis) if candidate.cv_analysis else {}
         job_data = json.loads(brief.full_data) if brief.full_data else {}
         
-        # Générer les questions
-        questions = generate_interview_questions(cv_data, job_data, context_data)
+        # Calculer ou récupérer les scores
+        score_result = {
+            "skills_score": candidate.skills_score if candidate.skills_score else 0,
+            "experience_score": candidate.experience_score if candidate.experience_score else 0,
+            "education_score": candidate.education_score if candidate.education_score else 0,
+            "final_score": candidate.final_score if candidate.final_score else 0
+        }
+        
+        # Générer les questions avec les bons paramètres
+        questions = generate_interview_questions(job_data, cv_data, score_result)
         
         if "error" in questions:
             return jsonify(questions), 500
@@ -871,9 +890,10 @@ def evaluate_candidate_interview(candidate_id):
         
         logger.info(f"Moyennes calculées - Culture: {culture_score}, Interview: {interview_score}")
         
-        # Convertir en pourcentage (si les scores sont sur 5)
-        culture_score_pct = (culture_score / 5.0) * 100
-        interview_score_pct = (interview_score / 5.0) * 100
+        # Convertir en pourcentage (les scores frontend sont sur une échelle de 1-4)
+        # 1 = Très insatisfait, 2 = Insatisfait, 3 = Satisfait, 4 = Très satisfait
+        culture_score_pct = ((culture_score - 1) / 3.0) * 100  # Normaliser de 1-4 vers 0-100
+        interview_score_pct = ((interview_score - 1) / 3.0) * 100  # Normaliser de 1-4 vers 0-100
         
         logger.info(f"Pourcentages - Culture: {culture_score_pct}%, Interview: {interview_score_pct}%")
         
