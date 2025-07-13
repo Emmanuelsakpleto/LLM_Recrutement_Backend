@@ -1238,3 +1238,32 @@ def get_candidate_interview_questions(candidate_id):
     except Exception as e:
         logger.error(f"Erreur récupération questions candidat {candidate_id}: {str(e)}")
         return jsonify({"error": "Erreur lors de la récupération des questions", "details": str(e)}), 500
+
+@bp.route('/api/context/<int:context_id>', methods=['DELETE'])
+@jwt_required()
+def delete_context(context_id):
+    """Supprimer un contexte d'entreprise"""
+    current_user_id = get_jwt_identity()
+    
+    try:
+        # Rechercher le contexte appartenant à l'utilisateur courant
+        context = CompanyContext.query.filter_by(
+            id=context_id, 
+            user_id=current_user_id
+        ).first()
+        
+        if not context:
+            return jsonify({"error": "Contexte non trouvé"}), 404
+        
+        # Supprimer tous les job briefs associés à ce contexte
+        JobBrief.query.filter_by(context_id=context_id).delete()
+        
+        # Supprimer le contexte
+        db.session.delete(context)
+        db.session.commit()
+        
+        return jsonify({"message": "Contexte supprimé avec succès"}), 200
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"Erreur lors de la suppression: {str(e)}"}), 500
