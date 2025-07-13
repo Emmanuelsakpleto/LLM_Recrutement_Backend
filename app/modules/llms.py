@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import time
+import random
 from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 import numpy as np
@@ -43,10 +44,190 @@ def get_sentence_transformer():
         )
     return _model_instance
 
+# Générateur intelligent de questions (fallback professionnel)
+def generate_intelligent_questions(job_description, cv_data, score_result):
+    """Générateur de questions intelligent basé sur des templates"""
+    templates = {
+        "Job_Description": {
+            "technical_skills": [
+                "Pouvez-vous expliquer votre expérience avec {skill} et comment vous l'avez utilisée dans vos projets précédents ?",
+                "Quels sont les défis les plus complexes que vous avez rencontrés avec {skill} et comment les avez-vous résolus ?",
+                "Comment évaluez-vous votre niveau de maîtrise de {skill} et quelles sont vos perspectives d'amélioration ?",
+                "Décrivez un projet concret où {skill} a été déterminant pour le succès de la réalisation.",
+                "Quelles sont les meilleures pratiques que vous appliquez quand vous travaillez avec {skill} ?"
+            ],
+            "experience": [
+                "Avec {years} ans d'expérience requise, comment votre parcours vous a-t-il préparé à ce poste ?",
+                "Décrivez une situation où votre expérience a été cruciale pour résoudre un problème complexe.",
+                "Comment votre expérience vous permet-elle d'aborder les défis de ce poste de {title} ?",
+                "Quels apprentissages de votre expérience passée souhaitez-vous appliquer dans ce rôle ?"
+            ],
+            "general": [
+                "Qu'est-ce qui vous motive le plus dans un poste de {title} ?",
+                "Comment voyez-vous l'évolution de votre carrière dans ce domaine ?",
+                "Quels sont vos objectifs professionnels à court et moyen terme ?",
+                "Comment définiriez-vous un environnement de travail idéal pour vous ?"
+            ]
+        },
+        "Company_Culture": {
+            "innovation": [
+                "Comment abordez-vous l'innovation dans votre travail quotidien ?",
+                "Décrivez une situation où vous avez proposé une solution innovante.",
+                "Que signifie l'innovation pour vous dans un contexte professionnel ?",
+                "Comment restez-vous à jour avec les dernières tendances de votre domaine ?"
+            ],
+            "collaboration": [
+                "Décrivez votre approche du travail en équipe.",
+                "Comment gérez-vous les conflits ou désaccords au sein d'une équipe ?",
+                "Donnez un exemple de collaboration réussie que vous avez menée.",
+                "Quel rôle préférez-vous jouer dans une équipe projet ?"
+            ],
+            "transparency": [
+                "Comment communiquez-vous sur vos difficultés ou erreurs ?",
+                "Quelle est votre approche pour donner et recevoir du feedback ?",
+                "Comment assurez-vous la transparence dans vos projets ?",
+                "Décrivez une situation où la transparence a été clé dans votre travail."
+            ],
+            "client_impact": [
+                "Comment mesurez-vous l'impact de votre travail sur les clients ?",
+                "Décrivez une situation où vous avez amélioré l'expérience client.",
+                "Quelle est votre approche pour comprendre les besoins clients ?",
+                "Comment intégrez-vous la perspective client dans vos décisions ?"
+            ]
+        },
+        "CV_Professional_Life": {
+            "skills_validation": [
+                "Votre CV mentionne {skill}. Pouvez-vous détailler votre expérience pratique avec cette technologie ?",
+                "Parmi vos compétences ({skills}), laquelle considérez-vous comme votre point fort ?",
+                "Comment avez-vous développé votre expertise en {skill} ?",
+                "Quels projets vous ont permis d'approfondir vos compétences en {skills} ?"
+            ],
+            "education": [
+                "Comment votre formation en {education} vous a-t-elle préparé à ce poste ?",
+                "Quels aspects de votre formation appliquez-vous encore aujourd'hui ?",
+                "Y a-t-il des domaines de votre formation que vous souhaitez approfondir ?",
+                "Comment complétez-vous votre formation initiale par l'apprentissage continu ?"
+            ],
+            "experience_analysis": [
+                "Quel a été votre projet le plus marquant et pourquoi ?",
+                "Comment avez-vous évolué professionnellement ces dernières années ?",
+                "Quels défis avez-vous rencontrés dans votre parcours et comment les avez-vous surmontés ?",
+                "Qu'est-ce qui vous a motivé à postuler pour ce poste maintenant ?"
+            ],
+            "career_progression": [
+                "Comment envisagez-vous la suite de votre carrière ?",
+                "Quelles compétences souhaitez-vous développer dans ce poste ?",
+                "Qu'est-ce qui vous motive dans votre évolution professionnelle ?",
+                "Comment ce poste s'inscrit-il dans votre projet de carrière ?"
+            ]
+        }
+    }
+    
+    all_questions = []
+    
+    # Extraction des données
+    title = job_description.get("title", "ce poste")
+    skills = job_description.get("skills", [])
+    years = job_description.get("required_experience_years", 3)
+    cv_skills = cv_data.get("Compétences", [])
+    education = cv_data.get("Formations", [{}])[0].get("diplôme", "votre formation")
+    
+    # Questions Job Description (5)
+    job_templates = templates["Job_Description"]
+    
+    # 2 questions techniques sur les compétences
+    if skills:
+        selected_skills = random.sample(skills, min(2, len(skills)))
+        for skill in selected_skills:
+            template = random.choice(job_templates["technical_skills"])
+            all_questions.append({
+                "category": "Job Description",
+                "question": template.format(skill=skill),
+                "purpose": f"Évaluer la maîtrise de {skill}"
+            })
+    
+    # 1 question sur l'expérience
+    exp_template = random.choice(job_templates["experience"])
+    all_questions.append({
+        "category": "Job Description",
+        "question": exp_template.format(years=years, title=title),
+        "purpose": "Évaluer l'expérience pertinente"
+    })
+    
+    # 2 questions générales
+    for _ in range(5 - len(all_questions)):
+        gen_template = random.choice(job_templates["general"])
+        all_questions.append({
+            "category": "Job Description",
+            "question": gen_template.format(title=title),
+            "purpose": "Évaluer la motivation et la vision"
+        })
+    
+    # Questions Company Culture (5)
+    culture_templates = templates["Company_Culture"]
+    categories = ["innovation", "collaboration", "transparency", "client_impact"]
+    
+    for category in categories:
+        template = random.choice(culture_templates[category])
+        all_questions.append({
+            "category": "Company Culture",
+            "question": template,
+            "purpose": f"Évaluer l'adéquation avec la valeur {category}"
+        })
+    
+    # Une question supplémentaire aléatoire
+    random_category = random.choice(categories)
+    template = random.choice(culture_templates[random_category])
+    all_questions.append({
+        "category": "Company Culture",
+        "question": template,
+        "purpose": f"Approfondir l'évaluation de {random_category}"
+    })
+    
+    # Questions CV/Professional Life (5)
+    cv_templates = templates["CV_Professional_Life"]
+    
+    # 2 questions sur les compétences CV
+    if cv_skills:
+        selected_skills = random.sample(cv_skills, min(2, len(cv_skills)))
+        for skill in selected_skills:
+            template = random.choice(cv_templates["skills_validation"])
+            all_questions.append({
+                "category": "CV/Professional Life",
+                "question": template.format(skill=skill, skills=", ".join(cv_skills)),
+                "purpose": f"Valider la compétence {skill}"
+            })
+    
+    # 1 question sur la formation
+    edu_template = random.choice(cv_templates["education"])
+    all_questions.append({
+        "category": "CV/Professional Life",
+        "question": edu_template.format(education=education),
+        "purpose": "Évaluer l'apport de la formation"
+    })
+    
+    # 2 questions sur l'expérience et la carrière
+    for _ in range(5 - (len(all_questions) - 10)):  # Compléter pour avoir 5 questions CV
+        if len(all_questions) % 2 == 0:
+            template = random.choice(cv_templates["experience_analysis"])
+            purpose = "Analyser l'expérience professionnelle"
+        else:
+            template = random.choice(cv_templates["career_progression"])
+            purpose = "Évaluer la progression de carrière"
+        
+        all_questions.append({
+            "category": "CV/Professional Life",
+            "question": template,
+            "purpose": purpose
+        })
+    
+    logger.info(f"✅ Générateur intelligent: {len(all_questions)} questions créées")
+    return {"questions": all_questions}
+
 try:
     # Configuration de l'API Gemini
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-pro')
+    model = genai.GenerativeModel('gemini-1.5-flash')
     logger.info("API Gemini configurée avec succès")
 except Exception as e:
     logger.error(f"Erreur lors de la configuration de l'API Gemini: {str(e)}")
@@ -62,7 +243,7 @@ def generate_job_description(data):
             raise ValueError("Configuration API manquante")
 
         genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         logger.info("✅ API Gemini configurée")
 
         prompt = f"""
@@ -456,27 +637,27 @@ def generate_interview_questions(job_description, cv_data, score_result, model="
             for category in prompts:
                 questions = generate_questions_for_category(prompts[category], category.replace("/", "_"), model)
                 if questions is None:
-                    logger.warning(f"⚠️ Échec API pour {category}, utilisation du fallback")
-                    # En cas d'échec d'une catégorie, utiliser le fallback complet
-                    fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
-                    logger.info("✅ Questions de fallback générées avec succès")
-                    return fallback_result
+                    logger.warning(f"⚠️ Échec API pour {category}, utilisation du générateur intelligent")
+                    # En cas d'échec d'une catégorie, utiliser le générateur intelligent
+                    intelligent_result = generate_intelligent_questions(job_description, cv_data, score_result)
+                    logger.info("✅ Questions intelligentes générées avec succès")
+                    return intelligent_result
                 all_questions.extend(questions)
 
             if len(all_questions) != 15:
-                logger.warning(f"⚠️ Nombre incorrect de questions ({len(all_questions)}), utilisation du fallback")
-                fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
-                logger.info("✅ Questions de fallback générées avec succès")
-                return fallback_result
+                logger.warning(f"⚠️ Nombre incorrect de questions ({len(all_questions)}), utilisation du générateur intelligent")
+                intelligent_result = generate_intelligent_questions(job_description, cv_data, score_result)
+                logger.info("✅ Questions intelligentes générées avec succès")
+                return intelligent_result
                 
             logger.info("✅ Questions API générées avec succès")
             
         except Exception as api_error:
             logger.error(f"❌ Erreur API Gemini: {str(api_error)}")
-            logger.info("🔄 Basculement vers le système de fallback")
-            fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
-            logger.info("✅ Questions de fallback générées avec succès")
-            return fallback_result
+            logger.info("🔄 Basculement vers le générateur intelligent")
+            intelligent_result = generate_intelligent_questions(job_description, cv_data, score_result)
+            logger.info("✅ Questions intelligentes générées avec succès")
+            return intelligent_result
 
         questions_data = {"questions": all_questions}
 
@@ -486,13 +667,13 @@ def generate_interview_questions(job_description, cv_data, score_result, model="
         return questions_data
     except Exception as e:
         logger.error(f"❌ Erreur générale dans generate_interview_questions: {str(e)}")
-        # Dernier recours : fallback même en cas d'erreur générale
+        # Dernier recours : générateur intelligent même en cas d'erreur générale
         try:
-            fallback_result = generate_fallback_questions(job_description, cv_data, score_result)
-            logger.info("✅ Questions de fallback générées en dernier recours")
-            return fallback_result
+            intelligent_result = generate_intelligent_questions(job_description, cv_data, score_result)
+            logger.info("✅ Questions intelligentes générées en dernier recours")
+            return intelligent_result
         except Exception as fallback_error:
-            logger.error(f"❌ Échec complet, même le fallback: {str(fallback_error)}")
+            logger.error(f"❌ Échec complet, même le générateur intelligent: {str(fallback_error)}")
             return {"error": f"Erreur générale : {str(e)}"}
 
 def collect_rh_appreciations(questions_data):
