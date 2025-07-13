@@ -1011,6 +1011,14 @@ def finalize_candidate_evaluation(candidate_id):
         candidate.risks = json.dumps(risks)
         candidate.radar_data = json.dumps(radar_data)
         
+        # Déterminer le statut final basé sur le score prédictif
+        if final_score >= SCORING_THRESHOLDS['EXCELLENT']:  # >= 80
+            candidate.status = "Recommandé"
+        elif final_score >= SCORING_THRESHOLDS['GOOD']:      # >= 60
+            candidate.status = "En évaluation"
+        else:  # < 60
+            candidate.status = "À revoir"
+        
         db.session.commit()
         
         logger.info(f"Évaluation finalisée pour candidat {candidate_id} - Score final: {final_score:.2f}%")
