@@ -799,11 +799,25 @@ def generate_candidate_interview_questions(candidate_id):
         job_data = json.loads(brief.full_data) if brief.full_data else {}
         
         # Calculer ou récupérer les scores
+        # Calculer le score final s'il n'existe pas déjà
+        if candidate.final_predictive_score:
+            calculated_final_score = candidate.final_predictive_score
+        else:
+            calculated_final_score = (
+                (candidate.skills_score or 0) * 0.25 +
+                (candidate.experience_score or 0) * 0.20 +
+                (candidate.education_score or 0) * 0.15 +
+                (candidate.culture_score or 0) * 0.20 +
+                (candidate.interview_score or 0) * 0.20
+            )
+        
         score_result = {
             "skills_score": candidate.skills_score if candidate.skills_score else 0,
             "experience_score": candidate.experience_score if candidate.experience_score else 0,
             "education_score": candidate.education_score if candidate.education_score else 0,
-            "final_score": candidate.final_score if candidate.final_score else 0
+            "culture_score": candidate.culture_score if candidate.culture_score else 0,
+            "interview_score": candidate.interview_score if candidate.interview_score else 0,
+            "final_score": calculated_final_score
         }
         
         # Générer les questions avec les bons paramètres
