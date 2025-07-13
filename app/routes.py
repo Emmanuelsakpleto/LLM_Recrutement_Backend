@@ -292,7 +292,7 @@ def get_candidates():
             elif score_details is None:
                 score_details = {}
                 
-            # Parsing risks
+            # Parsing risks - gestion des types PostgreSQL JSON
             risks = c.risks
             if isinstance(risks, str):
                 try:
@@ -301,8 +301,11 @@ def get_candidates():
                     risks = []
             elif risks is None:
                 risks = []
+            # Si c'est déjà une liste/dict (PostgreSQL JSON), on la garde telle quelle
+            elif not isinstance(risks, list):
+                risks = []
                 
-            # Parsing recommendations
+            # Parsing recommendations - gestion des types PostgreSQL JSON
             recommendations = c.recommendations
             if isinstance(recommendations, str):
                 try:
@@ -310,6 +313,9 @@ def get_candidates():
                 except Exception:
                     recommendations = []
             elif recommendations is None:
+                recommendations = []
+            # Si c'est déjà une liste/dict (PostgreSQL JSON), on la garde telle quelle
+            elif not isinstance(recommendations, list):
                 recommendations = []
                 
             candidates_data.append({

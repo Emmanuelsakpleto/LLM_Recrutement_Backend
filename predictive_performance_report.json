@@ -1,0 +1,66 @@
+{
+  "predictive_score": 76.83333333333333,
+  "appreciations": [
+    {
+      "question": "Test question 1?",
+      "category": "Job Description",
+      "appreciation": "satisfait",
+      "score": 75
+    },
+    {
+      "question": "Test question 2?",
+      "category": "Company Culture",
+      "appreciation": "très satisfait",
+      "score": 100
+    },
+    {
+      "question": "Test question 3?",
+      "category": "CV/Professional Life",
+      "appreciation": "satisfait",
+      "score": 75
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Manque d'expérience avec Django et PostgreSQL",
+      "description": "Le candidat possède une expérience limitée avec Django et PostgreSQL, technologies clés pour le poste.  Cela pourrait ralentir son intégration et sa productivité initiale."
+    },
+    {
+      "risk": "Différence entre compétences déclarées et compétences réelles",
+      "description": "Les scores indiquent une différence entre les compétences déclarées (CV) et les compétences évaluées (75%). Une évaluation approfondie est nécessaire pour identifier les lacunes et les points forts."
+    },
+    {
+      "risk": "Adaptation à l'environnement de travail et à l'équipe",
+      "description": "Même avec de bonnes compétences techniques, l'intégration au sein de l'équipe et l'adaptation à la culture d'entreprise peuvent prendre du temps et nécessiter un accompagnement."
+    }
+  ],
+  "recommendations": [
+    {
+      "type": "Formation",
+      "description": "Formation intensive sur Django et PostgreSQL, axée sur les aspects pratiques et les cas d'utilisation spécifiques au projet.  Durée : 2 semaines."
+    },
+    {
+      "type": "Mentoring",
+      "description": "Attribution d'un mentor senior développeur Python expérimenté avec Django et PostgreSQL.  Le mentor accompagnera le candidat durant les 3 premiers mois et l'aidera à naviguer dans l'environnement de travail."
+    },
+    {
+      "type": "Objectifs 30 jours",
+      "description": "Familiarisation avec le codebase existant, les outils et les processus de l'équipe.  Participation à des tâches simples sous la supervision du mentor."
+    },
+    {
+      "type": "Objectifs 60 jours",
+      "description": "Contribution à des tâches de développement plus complexes, en utilisant Django et PostgreSQL.  Participation active aux réunions d'équipe et aux revues de code."
+    },
+    {
+      "type": "Objectifs 90 jours",
+      "description": "Responsabilité sur un module ou une fonctionnalité spécifique du projet.  Démonstration d'autonomie et de capacité à résoudre des problèmes techniques."
+    }
+  ],
+  "radar_data": {
+    "Compétences": 75.0,
+    "Expérience": 60.0,
+    "Formation": 85.0,
+    "Culture": 100.0,
+    "Entretien": 83.33333333333333
+  }
+}
