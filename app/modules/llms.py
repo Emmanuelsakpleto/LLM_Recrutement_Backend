@@ -405,9 +405,28 @@ def calculate_cv_score(cv_data, job_description):
                 elif "-" in duration:
                     months = 2
                     total_years += months / 12
-            experience_score = min(total_years / required_years, 1.0) if required_years > 0 else 0.0
+            
+            # Gestion spéciale pour les postes de stagiaire (0 ans requis)
+            if required_years == 0:
+                # Pour un poste de stagiaire, toute expérience est un bonus
+                # Score basé sur l'expérience existante (plafonné à 100%)
+                experience_score = min(total_years * 0.5, 1.0)  # 2 ans d'expérience = score maximum
+                logger.info(f"💼 Poste de stagiaire détecté - Bonus d'expérience appliqué")
+            else:
+                # Calcul normal pour les postes avec expérience requise
+                experience_score = min(total_years / required_years, 1.0)
+            
             logger.info(f"💼 Total years calculated: {total_years}")
             logger.info(f"💼 Experience score: {experience_score}")
+        else:
+            # Aucune expérience dans le CV
+            if required_years == 0:
+                # Pour un poste de stagiaire sans expérience requise, c'est acceptable
+                experience_score = 0.8  # Score de base pour un stagiaire sans expérience
+                logger.info(f"💼 Poste de stagiaire sans expérience - Score de base appliqué")
+            else:
+                experience_score = 0.0
+                logger.info(f"💼 Aucune expérience trouvée")
 
         cv_educations = cv_data.get("Formations", [])
         required_degree = job_description.get("required_degree", "")

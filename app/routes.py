@@ -87,7 +87,7 @@ def create_brief():
             return jsonify({"error": "La génération de la fiche de poste a échoué. Veuillez réessayer ou modifier les paramètres."}), 502
         brief = JobBrief(
             title=data["title"],
-            skills=data.get("skills", []),
+            skills=json.dumps(data.get("skills", [])),
             experience=data.get("experience", "3-5 ans"),
             description=data.get("description", ""),
             full_data=json.dumps(full_data),
@@ -421,33 +421,7 @@ def upload_cv():
             return jsonify(cv_data), 500
         
         # Récupérer les détails du poste
-        job_desc = json.loads(brief.full_data)
-        
-        # NOUVEAU: Utiliser le service de scoring amélioré
-        from .modules.scoring_service import ScoringService
-        
-        # Calculer les scores CV (3 premières dimensions)
-        cv_scores = ScoringService.calculate_cv_scores(cv_data, job_desc)
-        
-        # Pour l'instant, culture et interview sont à 0 (seront calculés plus tard)
-        all_scores = {
-            'skills_score': cv_scores['skills_score'],
-            'experience_score': cv_scores['experience_score'], 
-            'education_score': cv_scores['education_score'],
-            'culture_score': 0.0,
-            'interview_score': 0.0
-        }
-        
-        # Calculer le score prédictif basé sur les 3 scores disponibles
-        # Ajuster les poids temporairement (sans culture et interview)
-        temp_final_score = (
-            cv_scores['skills_score'] * 0.5 +  # 50%
-            cv_scores['experience_score'] * 0.3 +  # 30%
-            cv_scores['education_score'] * 0.2   # 20%
-        )
-        
-        # Générer les recommandations basées sur les scores actuels
-        recommendations_data = ScoringService.get_candidate_recommendation(temp_final_score, all_scores)
+        job_desc = json.loads(brief.full_data) if isinstance(brief.full_data, str) else brief.full_data
         
         # Ancien système pour rétrocompatibilité
         score_result = calculate_cv_score(cv_data, job_desc)
@@ -456,39 +430,39 @@ def upload_cv():
         if "error" in report:
             return jsonify(report), 500
         
-        # Créer le candidat avec le nouveau système de scoring
+        # Créer le candidat avec un système simplifié
         candidate = Candidate(
             name=file.filename.split('.')[0],
             cv_analysis=json.dumps(cv_data),
             
-            # Nouveau système: scores détaillés
-            skills_score=all_scores['skills_score'],
-            experience_score=all_scores['experience_score'],
-            education_score=all_scores['education_score'],
-            culture_score=all_scores['culture_score'],
-            interview_score=all_scores['interview_score'],
+            # Scores de base depuis score_result
+            skills_score=score_result.get('skills_score', 0),
+            experience_score=score_result.get('experience_score', 0),
+            education_score=score_result.get('education_score', 0),
+            culture_score=0.0,  # Sera calculé plus tard
+            interview_score=0.0,  # Sera calculé plus tard
             final_predictive_score=0.0,  # Sera calculé APRÈS l'évaluation finale
             
             # Ancien système (rétrocompatibilité)
-            predictive_score=0.0,  # Sera calculé APRÈS l'évaluation finale
+            predictive_score=score_result.get('final_score', 0),
             
             # Métadonnées
-            status="CV analysé",  # Statut indiquant que seul le CV est analysé
+            status="CV analysé",
             process_stage="cv_analysis",
             brief_id=brief_id,
             user_id=current_user_id,
             
             # Données détaillées
-            score_details=json.dumps({**score_result, **all_scores}),
-            recommendations=json.dumps([]),  # Vide jusqu'à l'évaluation finale
-            risks=json.dumps([])  # Vide jusqu'à l'évaluation finale
+            score_details=json.dumps(score_result),
+            recommendations=json.dumps(report.get('recommendations', [])),
+            risks=json.dumps(report.get('risks', []))
         )
         
         db.session.add(candidate)
         db.session.commit()
         
-        logger.info(f"🎯 Candidat créé - ID: {candidate.id}, Score final: {temp_final_score:.1f}%")
-        logger.info(f"   Skills: {all_scores['skills_score']:.1f}% | Experience: {all_scores['experience_score']:.1f}% | Education: {all_scores['education_score']:.1f}%")
+        logger.info(f"🎯 Candidat créé - ID: {candidate.id}, Score final: {score_result.get('final_score', 0):.1f}%")
+        logger.info(f"   Skills: {score_result.get('skills_score', 0):.1f}% | Experience: {score_result.get('experience_score', 0):.1f}% | Education: {score_result.get('education_score', 0):.1f}%")
         
         logger.info(f"Candidat créé avec succès - ID: {candidate.id}, nom: {candidate.name}, brief_id: {candidate.brief_id}")
         
@@ -703,16 +677,32 @@ def get_candidates_v2():
         # Enrichir les données candidat
         candidates_data = []
         for candidate in candidates:
-            # Utiliser la nouvelle méthode to_dict()
-            candidate_dict = candidate.to_dict()
+            # Utiliser une méthode simple pour convertir en dict
+            candidate_dict = {
+                'id': candidate.id,
+                'name': candidate.name,
+                'status': candidate.status,
+                'process_stage': candidate.process_stage,
+                'brief_id': candidate.brief_id,
+                'user_id': candidate.user_id,
+                'skills_score': candidate.skills_score,
+                'experience_score': candidate.experience_score,
+                'education_score': candidate.education_score,
+                'culture_score': candidate.culture_score,
+                'interview_score': candidate.interview_score,
+                'final_predictive_score': candidate.final_predictive_score,
+                'predictive_score': candidate.predictive_score
+            }
             
-            # Ajouter des métadonnées utiles
-            candidate_dict['recommendation'] = ScoringService.get_candidate_recommendation(
-                candidate.final_predictive_score, 
-                candidate_dict['scores']
-            )
+            # Ajouter des métadonnées simples
+            if candidate.final_predictive_score >= 80:
+                candidate_dict['recommendation'] = "Excellent candidat"
+            elif candidate.final_predictive_score >= 60:
+                candidate_dict['recommendation'] = "Bon candidat"
+            else:
+                candidate_dict['recommendation'] = "À revoir"
             
-            candidate_dict['process_stage_label'] = ScoringService.get_process_stage_label(candidate.process_stage)
+            candidate_dict['process_stage_label'] = candidate.process_stage.replace('_', ' ').title()
             
             candidates_data.append(candidate_dict)
         
@@ -757,9 +747,16 @@ def advance_candidate_stage(candidate_id):
         db.session.commit()
         
         return jsonify({
-            "message": f"Candidat avancé à l'étape: {ScoringService.get_process_stage_label(next_stage)}",
+            "message": f"Candidat avancé à l'étape: {next_stage.replace('_', ' ').title()}",
             "new_stage": next_stage,
-            "candidate": candidate.to_dict()
+            "candidate": {
+                'id': candidate.id,
+                'name': candidate.name,
+                'status': candidate.status,
+                'process_stage': candidate.process_stage,
+                'brief_id': candidate.brief_id,
+                'user_id': candidate.user_id
+            }
         }), 200
         
     except Exception as e:
