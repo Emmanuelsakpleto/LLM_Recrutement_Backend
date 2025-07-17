@@ -355,7 +355,29 @@ def list_briefs():
     """Lister toutes les fiches de poste"""
     try:
         briefs = JobBrief.query.all()
-        briefs_data = [brief.to_dict() for brief in briefs]
+        logger.info(f"Nombre de briefs trouvés: {len(briefs)}")
+        
+        briefs_data = []
+        for brief in briefs:
+            try:
+                brief_dict = brief.to_dict()
+                briefs_data.append(brief_dict)
+                logger.info(f"Brief {brief.id} converti avec succès")
+            except Exception as e:
+                logger.error(f"Erreur lors de la conversion du brief {brief.id}: {str(e)}")
+                # Ajouter un brief minimal pour éviter l'échec complet
+                briefs_data.append({
+                    'id': brief.id,
+                    'title': brief.title,
+                    'skills': [],
+                    'experience': brief.experience,
+                    'description': brief.description,
+                    'full_data': None,
+                    'created_at': brief.created_at.isoformat() if brief.created_at else None,
+                    'updated_at': brief.updated_at.isoformat() if brief.updated_at else None,
+                    'status': brief.status
+                })
+        
         return jsonify(briefs_data), 200
         
     except Exception as e:

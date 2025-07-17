@@ -16,13 +16,36 @@ class JobBrief(db.Model):
     context_id = db.Column(db.Integer, db.ForeignKey('company_context.id'), nullable=True)
     
     def to_dict(self):
+        # Gestion sécurisée du parsing des skills
+        skills_parsed = []
+        if self.skills:
+            try:
+                if isinstance(self.skills, str):
+                    skills_parsed = json.loads(self.skills)
+                else:
+                    skills_parsed = self.skills
+            except (json.JSONDecodeError, TypeError):
+                # Si le parsing échoue, on traite comme une chaîne simple
+                skills_parsed = [self.skills] if self.skills else []
+        
+        # Gestion sécurisée du parsing de full_data
+        full_data_parsed = None
+        if self.full_data:
+            try:
+                if isinstance(self.full_data, str):
+                    full_data_parsed = json.loads(self.full_data)
+                else:
+                    full_data_parsed = self.full_data
+            except (json.JSONDecodeError, TypeError):
+                full_data_parsed = None
+        
         return {
             'id': self.id,
             'title': self.title,
-            'skills': json.loads(self.skills) if isinstance(self.skills, str) else self.skills,
+            'skills': skills_parsed,
             'experience': self.experience,
             'description': self.description,
-            'full_data': json.loads(self.full_data) if self.full_data else None,
+            'full_data': full_data_parsed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'status': self.status
